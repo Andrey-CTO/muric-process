@@ -314,6 +314,11 @@ const App = () => {
   const [connectionStep, setConnectionStep] = useState(0); // 0: DNS, 1: Handshake, 2: Auth
   const [transmitETA, setTransmitETA] = useState(0);
   const [downloaded, setDownloaded] = useState(false);
+  
+  // Modal de Previsualización AVRO
+  const [showAvroPreview, setShowAvroPreview] = useState(false);
+  const [avroFilter, setAvroFilter] = useState('');
+  const [avroCurrentPage, setAvroCurrentPage] = useState(1);
 
   const FILE_SIZE_MB = 250; 
   const USUARIO_ACTUAL = "analista_regulatorio_01";
@@ -334,6 +339,44 @@ const App = () => {
   const MODAL_VIRTUAL_TOTAL = modalDetailFilter ? modalFilteredDetails.length : MODAL_TOTAL_RECORDS;
   const MODAL_TOTAL_PAGES = modalDetailFilter ? Math.ceil(modalFilteredDetails.length / 10) || 1 : Math.ceil(MODAL_TOTAL_RECORDS / 10);
   const modalCurrentDetails = modalDetailFilter ? modalFilteredDetails.slice((modalCurrentPage - 1) * 10, modalCurrentPage * 10) : mockRecordsData.slice(0, 10).map((r, i) => ({...r, idInterno: (modalCurrentPage - 1) * 10 + i + 1, idObligacion: `OBL-${((modalCurrentPage - 1) * 10 + i + 1).toString().padStart(7, '0')}`}));
+
+  // Generación Datos Demo Complejos para AVRO Preview
+  const AVRO_TOTAL_RECORDS = selectedCorte ? selectedCorte.records : 2504120;
+  const AVRO_ITEMS_PER_PAGE = 12;
+  const filteredAvroCount = avroFilter ? Math.max(1, Math.floor(AVRO_TOTAL_RECORDS * 0.00005)) : AVRO_TOTAL_RECORDS; 
+  const avroTotalPages = Math.ceil(filteredAvroCount / AVRO_ITEMS_PER_PAGE);
+
+  const currentAvroData = useMemo(() => {
+    const startIdx = (avroCurrentPage - 1) * AVRO_ITEMS_PER_PAGE;
+    const data = [];
+    for (let i = 0; i < AVRO_ITEMS_PER_PAGE; i++) {
+      const globalIdx = startIdx + i;
+      if (globalIdx >= filteredAvroCount) break;
+      
+      const isMora = globalIdx % 11 === 0;
+      const tipoCredito = ['Comercial', 'Consumo', 'Hipotecario', 'Microcrédito'][globalIdx % 4];
+      
+      data.push({
+        idInterno: globalIdx + 1,
+        tipoId: globalIdx % 5 === 0 ? 'NIT' : 'CC',
+        idCliente: avroFilter ? `10${Math.floor(Math.random()*900000)}` : `10${(globalIdx * 13 % 90000000).toString().padStart(7, '0')}`,
+        nombre: globalIdx % 5 === 0 ? `Empresa Comercializadora ${globalIdx} S.A.` : `Cliente Natural ${globalIdx}`,
+        ciiu: globalIdx % 5 === 0 ? '4690' : '0010',
+        municipio: ['11001 (Bogotá)', '05001 (Medellín)', '76001 (Cali)', '08001 (Barranquilla)'][globalIdx % 4],
+        idObligacion: avroFilter ? `OBL-${Math.floor(Math.random()*90000)}` : `OBL-${(globalIdx + 1).toString().padStart(7, '0')}`,
+        tipoCredito: tipoCredito,
+        fechaDesembolso: `202${globalIdx % 4 + 1}-0${globalIdx % 9 + 1}-1${globalIdx % 8 + 1}`,
+        tasa: (12.5 + (globalIdx % 10)).toFixed(2) + '%',
+        saldoCapital: 1500000 + (globalIdx * 250000 % 50000000),
+        saldoIntereses: 150000 + (globalIdx * 25000 % 5000000),
+        diasMora: isMora ? (globalIdx % 90) + 1 : 0,
+        calificacion: isMora ? (globalIdx % 3 === 0 ? 'C' : 'B') : 'A',
+        garantia: tipoCredito === 'Hipotecario' ? 'Hipotecaria' : (globalIdx % 3 === 0 ? 'Fondo Nacional de Garantías' : 'Idónea / Sin Garantía'),
+        provision: isMora ? 150000 + (globalIdx * 10000 % 500000) : 0
+      });
+    }
+    return data;
+  }, [avroCurrentPage, avroFilter, filteredAvroCount]);
 
   const steps = ["Esquema", "Fuentes", "Revisión", "Canal", "Preparación", "Transmisión", "Resultado"];
 
@@ -358,7 +401,7 @@ const App = () => {
 
   const handleRestart = () => {
     setStep(0);
-    setHighestStep(0); // Corrección para no mostrar pasos futuros pre-completados
+    setHighestStep(0); 
     setInitExtStatus('idle'); setInitExtProgress(0); setInitExtTab('todos'); setExpandedRule(null);
     setSaneamientoStatus('idle'); setSaneamientoLogs([]); setHasCriticalErrors(false); setIsSanitized(false); setShowSaneamientoConsole(true);
     setSchemaMode('select'); setSelectedSchemaVersion('v1.3'); setSchemaValid(true);
@@ -368,7 +411,7 @@ const App = () => {
     setHistFilterPeriod(''); setHistFilterStatus('Todos'); setHistCurrentPage(1);
     setChannel(null); setPreparing(false); setIsAvroGenerated(false); setIsSigned(false); setIsPartitioned(false);
     setTransmitting(false); setTransmitProgress(0); setTransmitETA(0); setDownloaded(false); 
-    setConnectionStatus('idle'); setConnectionStep(0);
+    setConnectionStatus('idle'); setConnectionStep(0); setShowAvroPreview(false); setAvroCurrentPage(1); setAvroFilter('');
   };
 
   const handleInitialExtract = () => {
@@ -380,10 +423,9 @@ const App = () => {
     setSaneamientoStatus('idle'); 
     setIsSanitized(false);
     setShowSaneamientoConsole(true);
-    setHighestStep(0); // Asegurar que stepper se reinicia si ejecutan de nuevo
+    setHighestStep(0); 
     setExtractionLogs(["[SYSTEM] Estableciendo conexión segura con la base de datos central..."]);
     
-    // Genera siempre los errores en la primera corrida para mostrar el pipeline
     setHasCriticalErrors(true); 
     
     const extractStages = [
@@ -465,6 +507,9 @@ const App = () => {
     setTimeout(processCorrectionStep, 400);
   };
 
+  const handleSchemaSelection = (version) => { setSelectedSchemaVersion(version); setSchemaValid(false); if (version) setTimeout(() => setSchemaValid(true), 600); };
+  const handleUploadSchema = () => { setSelectedSchemaVersion('new'); setTimeout(() => setSchemaValid(true), 1200); };
+
   const handleExtract = () => {
     if (sourceTab === 'nuevas') {
       const isCsv = newSourceType === 'csv';
@@ -490,7 +535,29 @@ const App = () => {
 
   const handlePreparePackage = () => {
     setPreparing(true);
-    setTimeout(() => { setIsAvroGenerated(true); setTimeout(() => { setIsSigned(true); setTimeout(() => { setIsPartitioned(true); setPreparing(false); }, 1200); }, 1200); }, 1500);
+    setTimeout(() => { 
+      setIsAvroGenerated(true); 
+      // Extend delay for signing so user has time to see raw AVRO generated state
+      setTimeout(() => { 
+        setIsSigned(true); 
+        setTimeout(() => { 
+          setIsPartitioned(true); 
+          setPreparing(false); 
+        }, 1200); 
+      }, 2500); 
+    }, 1500);
+  };
+
+  const handleDownloadAvro = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const content = "Obj\x01\x04\x14avro.codec\x08null\x16avro.schema\xCA\x02{\"type\":\"record\",\"name\":\"Cartera_MURIC\",\"fields\":[{\"name\":\"idCliente\",\"type\":\"string\"},{\"name\":\"tipoCredito\",\"type\":\"string\"},{\"name\":\"saldoCapital\",\"type\":\"double\"}]}\x00\x00\x00\x00\x00\x00... (Binary Mock Payload)";
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `muric_raw_${selectedCorte?.period.replace('-','') || '202603'}.avro`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
 
   const handleTransmit = () => {
@@ -1227,7 +1294,7 @@ const App = () => {
                     </table>
                   </div>
                   
-                  <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+                  <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex justify-between items-center rounded-b-xl shrink-0">
                     <span className="text-xs text-slate-500 font-medium">Mostrando {currentExtractLotes.length} de {filteredCortes.length}</span>
                     <div className="flex items-center space-x-2">
                       <button onClick={() => setExtractCurrentPage(p => Math.max(1, p - 1))} disabled={extractCurrentPage === 1} className="px-2 py-1 border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50 text-xs font-bold transition-all">Anterior</button>
@@ -1670,9 +1737,23 @@ const App = () => {
                 <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm transition-colors duration-500 ${isAvroGenerated ? 'bg-emerald-500' : preparing ? 'bg-blue-500 animate-pulse' : 'bg-slate-300'}`}>
                    {isAvroGenerated ? <CheckCircle2 size={14} className="animate-in zoom-in"/> : '1'}
                 </div>
-                <div className="ml-4">
-                  <h5 className={`text-base font-bold transition-colors duration-500 ${isAvroGenerated ? 'text-emerald-800' : preparing ? 'text-blue-800' : 'text-slate-500'}`}>Serialización AVRO</h5>
-                  <p className="text-sm text-slate-500">Convirtiendo datos extraídos al esquema {selectedSchemaVersion}.</p>
+                <div className="ml-4 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                    <div>
+                      <h5 className={`text-base font-bold transition-colors duration-500 ${isAvroGenerated ? 'text-emerald-800' : preparing ? 'text-blue-800' : 'text-slate-500'}`}>Serialización AVRO</h5>
+                      <p className="text-sm text-slate-500">Convirtiendo datos extraídos al esquema {selectedSchemaVersion}.</p>
+                    </div>
+                    {isAvroGenerated && (
+                      <div className="flex space-x-2 animate-in fade-in zoom-in duration-300 shrink-0">
+                        <button onClick={() => setShowAvroPreview(true)} className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center transition-colors border border-blue-200 shadow-sm">
+                          <Eye size={14} className="mr-1.5" /> Ver Datos
+                        </button>
+                        <button onClick={handleDownloadAvro} className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold flex items-center transition-colors border border-slate-300 shadow-sm">
+                          <Download size={14} className="mr-1.5" /> .AVRO
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1923,17 +2004,18 @@ const App = () => {
         }
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
+          height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #0f172a;
+          background: #f1f5f9;
           border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #334155;
+          background: #cbd5e1;
           border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #475569;
+          background: #94a3b8;
         }
       `}</style>
       <header className="bg-[#0b1120] text-white border-b border-slate-800 h-16 flex items-center px-6 justify-between shrink-0 shadow-sm relative z-50">
@@ -1991,7 +2073,7 @@ const App = () => {
                   const actualIndex = i + 2; 
                   const isActive = step === actualIndex;
                   const isCompleted = actualIndex <= highestStep && !isActive; 
-                  const isClickable = actualIndex <= highestStep; // Accessible past stages
+                  const isClickable = actualIndex <= highestStep; 
                   
                   return (
                     <div key={i} 
@@ -2039,6 +2121,104 @@ const App = () => {
                 {step === 8 && <button onClick={handleRestart} className="bg-slate-800 hover:bg-slate-900 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 px-8 py-2.5 rounded-lg text-sm font-bold transition-all">Ir al Histórico</button>}
               </div>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PREVISUALIZACION DE AVRO */}
+      {showAvroPreview && (
+        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+             {/* Modal Header */}
+             <div className="bg-white border-b border-slate-200 p-5 flex justify-between items-center shrink-0">
+               <div className="flex items-center">
+                 <FileJson size={20} className="mr-3 text-blue-600"/> 
+                 <h3 className="font-bold text-slate-800 text-lg mr-4">Previsualización de Datos Serializados (AVRO)</h3>
+                 <span className="bg-emerald-50 text-emerald-800 px-3 py-1 rounded-md text-xs font-bold border border-emerald-200 flex items-center">
+                   <CheckCircle2 size={14} className="mr-1.5 text-emerald-500"/> Estructura Validada
+                 </span>
+               </div>
+               <button onClick={() => setShowAvroPreview(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
+             </div>
+             
+             {/* Toolbar: Search & Pagination info */}
+             <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center text-sm gap-4 shrink-0">
+               <div className="relative w-full sm:w-80">
+                 <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                 <input 
+                   type="text" 
+                   placeholder="Buscar por ID, NIT o Nombre..." 
+                   value={avroFilter}
+                   onChange={(e) => {setAvroFilter(e.target.value); setAvroCurrentPage(1);}}
+                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 font-medium hover:shadow-sm transition-shadow bg-white"
+                 />
+               </div>
+               <div className="flex items-center space-x-4">
+                 <span className="text-slate-600 font-medium text-xs">
+                   {filteredAvroCount > 0 ? (<>Mostrando <strong>{((avroCurrentPage - 1) * AVRO_ITEMS_PER_PAGE) + 1} a {Math.min(avroCurrentPage * AVRO_ITEMS_PER_PAGE, filteredAvroCount)}</strong> de <strong>{filteredAvroCount.toLocaleString()}</strong></>) : '0 resultados'}
+                 </span>
+                 <div className="flex items-center space-x-2">
+                   <button onClick={() => setAvroCurrentPage(p => Math.max(1, p - 1))} disabled={avroCurrentPage === 1} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Anterior</button>
+                   <span className="font-bold text-slate-700 text-xs">Pág {avroCurrentPage} de {avroTotalPages}</span>
+                   <button onClick={() => setAvroCurrentPage(p => Math.min(avroTotalPages, p + 1))} disabled={avroCurrentPage === avroTotalPages || avroTotalPages === 0} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-blue-600 disabled:opacity-50 hover:bg-blue-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Siguiente</button>
+                 </div>
+               </div>
+             </div>
+
+             {/* Table */}
+             <div className="overflow-y-auto flex-1 p-0 bg-white">
+               <table className="w-full text-sm text-left whitespace-nowrap">
+                 <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                   <tr>
+                     <th className="px-6 py-3 font-bold">Tipo ID</th>
+                     <th className="px-6 py-3 font-bold">ID Cliente</th>
+                     <th className="px-6 py-3 font-bold">Nombre / Razón Social</th>
+                     <th className="px-6 py-3 font-bold">ID Obligación</th>
+                     <th className="px-6 py-3 font-bold">Tipo Crédito</th>
+                     <th className="px-6 py-3 font-bold text-right">Saldo Capital</th>
+                     <th className="px-6 py-3 font-bold text-right">Provisión</th>
+                     <th className="px-6 py-3 font-bold text-center">Días Mora</th>
+                     <th className="px-6 py-3 font-bold text-center">Calif.</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100 text-xs font-mono">
+                   {currentAvroData.length > 0 ? currentAvroData.map((r, i) => (
+                      <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-6 py-3 text-slate-500">{r.tipoId}</td>
+                        <td className="px-6 py-3 text-slate-800 font-bold">{r.idCliente}</td>
+                        <td className="px-6 py-3 font-sans font-medium text-slate-700 truncate max-w-[200px]">{r.nombre}</td>
+                        <td className="px-6 py-3 text-blue-700 bg-blue-50/50 px-2 rounded font-bold">{r.idObligacion}</td>
+                        <td className="px-6 py-3 font-sans text-slate-600">{r.tipoCredito}</td>
+                        <td className="px-6 py-3 text-right text-slate-800">$ {r.saldoCapital.toLocaleString()}</td>
+                        <td className="px-6 py-3 text-right text-slate-600">$ {r.provision.toLocaleString()}</td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`${r.diasMora > 0 ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'} px-2 py-0.5 rounded font-bold`}>{r.diasMora}</span>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`${r.calificacion === 'A' ? 'text-emerald-600' : 'text-amber-600'} font-bold`}>{r.calificacion}</span>
+                        </td>
+                      </tr>
+                   )) : (
+                      <tr><td colSpan="9" className="px-6 py-12 text-center text-slate-500 font-sans text-sm">No se encontraron registros en el archivo AVRO que coincidan con la búsqueda.</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+
+             {/* Footer */}
+             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+               <div className="text-xs text-slate-500 font-mono flex items-center">
+                 <ShieldCheck size={14} className="mr-1 text-emerald-500"/> Validado contra esquema {selectedSchemaVersion}
+               </div>
+               <div className="flex space-x-3">
+                 <button onClick={handleDownloadAvro} className="px-6 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-lg transition-all hover:shadow-sm flex items-center">
+                   <Download size={16} className="mr-2 text-slate-500"/> Descargar Archivo .AVRO
+                 </button>
+                 <button onClick={() => setShowAvroPreview(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-lg transition-all hover:shadow-md">
+                   Cerrar Vista
+                 </button>
+               </div>
+             </div>
           </div>
         </div>
       )}
@@ -2128,7 +2308,7 @@ const App = () => {
                    
                    <div className="overflow-x-auto">
                      <table className="w-full text-sm text-left whitespace-nowrap">
-                      <thead className="bg-white text-slate-500 text-[10px] uppercase border-b border-slate-100 tracking-wider">
+                      <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-100 tracking-wider">
                         <tr><th className="px-6 py-3 font-bold"># ID_Interno</th><th className="px-6 py-3 font-bold">ID_Obligación</th><th className="px-6 py-3 font-bold">Tipo_Credito</th><th className="px-6 py-3 font-bold text-right">Saldo_Capital</th><th className="px-6 py-3 font-bold text-center">Calificación</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs font-mono">
