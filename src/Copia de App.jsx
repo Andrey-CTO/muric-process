@@ -5,15 +5,16 @@ import {
   CheckCircle2, Terminal, FileJson, Database, FileSpreadsheet, FileSignature, 
   Scissors, Key, CheckSquare, Zap, FileText, FileArchive, Search, Calendar,
   RotateCcw, Filter, PieChart, Users, ListFilter, Shield, Layers, Eye, X, Link,
-  AlertOctagon, ChevronDown, Check, FileWarning, Sliders, ToggleLeft, ToggleRight, Settings,
-  Workflow
+  AlertOctagon, ChevronDown, Check, FileWarning, Sliders, ToggleLeft, ToggleRight, Settings
 } from 'lucide-react';
 
+// Utilidad para obtener el mes actual en formato YYYY-MM
 const getCurrentMonthStr = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// Componente Personalizado para Selección de Periodo (Mes y Año)
 const PeriodPicker = ({ value, onChange, placeholder = "YYYY-MM" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => {
@@ -89,6 +90,7 @@ const PeriodPicker = ({ value, onChange, placeholder = "YYYY-MM" }) => {
 };
 
 const App = () => {
+  // Generación de data mock adicional para el histórico
   const lotesIniciales = [
     { id: 'C-202603', period: '2026-03', label: 'Marzo 2026', source: 'db', sourceLabel: 'Generación TÓTAL SÚPERVISION®', records: 2510000, estadoDatos: 'Aprobada', fechaAprobacion: '15/03/2026 08:30 AM', estadoAvro: 'Pendiente', estadoTransmision: 'Pendiente', fechaTransmision: '-', canal: '-', archivos: [], respuesta: '-' },
     { id: 'C-202602', period: '2026-02', label: 'Febrero 2026', source: 'db', sourceLabel: 'Generación TÓTAL SÚPERVISION®', records: 2504120, estadoDatos: 'Aprobada', fechaAprobacion: '12/02/2026 09:15 AM', estadoAvro: 'Generado', estadoTransmision: 'Transmitido', fechaTransmision: '14/02/2026 11:20 AM', canal: 'REST API', archivos: [{nombre: 'muric_part1.avro.pgp', peso: '100 MB'}, {nombre: 'muric_part2.avro.pgp', peso: '100 MB'}, {nombre: 'muric_part3.avro.pgp', peso: '50 MB'}], respuesta: '200 OK - Lote Aceptado' },
@@ -107,12 +109,17 @@ const App = () => {
   });
 
   const [lotes, setLotes] = useState([...lotesIniciales, ...lotesHistoricos]);
+
+  // Estado general del flujo y el historial del mayor paso alcanzado
   const [step, setStep] = useState(0); 
   const [highestStep, setHighestStep] = useState(0);
 
-  useEffect(() => { setHighestStep(prev => Math.max(prev, step)); }, [step]);
+  useEffect(() => {
+    setHighestStep(prev => Math.max(prev, step));
+  }, [step]);
 
-  const [initExtStatus, setInitExtStatus] = useState('idle'); 
+  // --- ETAPA 0: Extracción Inicial de Calidad ---
+  const [initExtStatus, setInitExtStatus] = useState('idle'); // 'idle' | 'loading' | 'completed'
   const [initExtProgress, setInitExtProgress] = useState(0);
   const [extractionLogs, setExtractionLogs] = useState([]);
   const [initExtTab, setInitExtTab] = useState('todos'); 
@@ -120,47 +127,74 @@ const App = () => {
   const [initPeriod, setInitPeriod] = useState(getCurrentMonthStr()); 
   const [hasCriticalErrors, setHasCriticalErrors] = useState(false);
 
-  const [saneamientoStatus, setSaneamientoStatus] = useState('idle'); 
+  // Estados del Saneamiento (Pipeline)
+  const [saneamientoStatus, setSaneamientoStatus] = useState('idle'); // 'idle' | 'running' | 'success' | 'partial'
   const [saneamientoLogs, setSaneamientoLogs] = useState([]);
   const [simularIrreparables, setSimularIrreparables] = useState(false);
   const [isSanitized, setIsSanitized] = useState(false);
   const [showSaneamientoConsole, setShowSaneamientoConsole] = useState(true);
 
+  // Calendario del Header
   const [showHeaderCalendar, setShowHeaderCalendar] = useState(false);
   const headerCalendarRef = useRef(null);
+
   const consoleContainerRef = useRef(null);
   const extractionConsoleRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (headerCalendarRef.current && !headerCalendarRef.current.contains(event.target)) setShowHeaderCalendar(false);
+      if (headerCalendarRef.current && !headerCalendarRef.current.contains(event.target)) {
+        setShowHeaderCalendar(false);
+      }
     };
     if (showHeaderCalendar) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showHeaderCalendar]);
 
   useEffect(() => {
-    if (consoleContainerRef.current) consoleContainerRef.current.scrollTo({ top: consoleContainerRef.current.scrollHeight, behavior: 'smooth' });
+    if (consoleContainerRef.current) {
+      consoleContainerRef.current.scrollTo({ top: consoleContainerRef.current.scrollHeight, behavior: 'smooth' });
+    }
   }, [saneamientoLogs, showSaneamientoConsole]);
 
   useEffect(() => {
-    if (extractionConsoleRef.current) extractionConsoleRef.current.scrollTo({ top: extractionConsoleRef.current.scrollHeight, behavior: 'smooth' });
+    if (extractionConsoleRef.current) {
+      extractionConsoleRef.current.scrollTo({ top: extractionConsoleRef.current.scrollHeight, behavior: 'smooth' });
+    }
   }, [extractionLogs]);
 
+  // Motor dinámico de Reglas de Calidad
   const getValidationGroups = () => {
-    if (saneamientoStatus === 'success') return { estructura: [], operativas: [], norma: [], negocio: [], todos: [] }; 
+    if (saneamientoStatus === 'success') {
+      return { estructura: [], operativas: [], norma: [], negocio: [], todos: [] }; // CERO ERRORES
+    }
+
     let est = [
       { cod: 'VAL-EST-01', col: 'TIPO_IDENTIFICACION', desc: 'Campo obligatorio vacío o contiene nulos', cant: 105, severity: 'Alta' },
       { cod: 'VAL-EST-04', col: 'FECHA_DESEMBOLSO', desc: 'Formato de fecha inconsistente con estándar ISO', cant: 15, severity: 'Media' }
     ];
-    if (saneamientoStatus === 'partial') est = [{ cod: 'VAL-EST-99', col: 'ID_OBLIGACION / TERCERO', desc: 'Datos en blanco irreemplazables desde la fuente originadora', cant: 5, severity: 'Crítica' }];
-    let ope = saneamientoStatus === 'partial' ? [] : [{ cod: 'VAL-OPE-12', col: 'SALDO_CAPITAL', desc: 'Variación de saldo supera el 10% frente al mes anterior', cant: 15, severity: 'Media' }];
+
+    if (saneamientoStatus === 'partial') {
+      est = [{ cod: 'VAL-EST-99', col: 'ID_OBLIGACION / TERCERO', desc: 'Datos en blanco irreemplazables desde la fuente originadora', cant: 5, severity: 'Crítica' }];
+    }
+
+    let ope = saneamientoStatus === 'partial' ? [] : [
+      { cod: 'VAL-OPE-12', col: 'SALDO_CAPITAL', desc: 'Variación de saldo supera el 10% frente al mes anterior', cant: 15, severity: 'Media' }
+    ];
+
     let nor = saneamientoStatus === 'partial' ? [] : [
       { cod: 'VAL-NOR-08', col: 'CALIFICACION_RIESGO', desc: 'Valor reportado no existe en el catálogo oficial de la SFC', cant: 150, severity: 'Alta' },
       { cod: 'VAL-NOR-11', col: 'TASA_INTERES_EA', desc: 'La tasa reportada supera el límite de usura vigente', cant: 50, severity: 'Crítica' }
     ];
-    let neg = saneamientoStatus === 'partial' ? [] : [{ cod: 'VAL-NEG-02', col: 'TIPO_GARANTIA', desc: 'Obligación > $1.000M sin garantía idónea registrada', cant: 10, severity: 'Baja' }];
-    return { estructura: est, operativas: ope, norma: nor, negocio: neg, todos: [...est, ...ope, ...nor, ...neg] };
+
+    let neg = saneamientoStatus === 'partial' ? [] : [
+      { cod: 'VAL-NEG-02', col: 'TIPO_GARANTIA', desc: 'Obligación > $1.000M sin garantía idónea registrada', cant: 10, severity: 'Baja' }
+    ];
+
+    return {
+      estructura: est, operativas: ope, norma: nor, negocio: neg,
+      todos: [...est, ...ope, ...nor, ...neg]
+    };
   };
 
   const currentValidationGroups = getValidationGroups();
@@ -175,7 +209,10 @@ const App = () => {
         detailedList.push({
           idInterno: `REC-${internalIdCounter++}`,
           idObligacion: `OBL-${(Math.floor(Math.random() * 90000) + 10000)}`,
-          regla: rule.cod, columna: rule.col, descripcion: rule.desc, severidad: rule.severity,
+          regla: rule.cod,
+          columna: rule.col,
+          descripcion: rule.desc,
+          severidad: rule.severity,
           accion: rule.cod === 'VAL-EST-99' ? 'Intervención manual requerida en fuente' : 'Revisión y ajuste de formato/catálogo'
         });
       }
@@ -185,26 +222,39 @@ const App = () => {
 
   const exportToCSV = () => {
     const details = getDetailedErrors();
-    let csvContent = "\uFEFFID_Interno,ID_Obligacion,Regla,Columna,Descripcion,Severidad,Accion_Sugerida\n";
+    let csvContent = "\uFEFF"; 
+    csvContent += "ID_Interno,ID_Obligacion,Regla,Columna,Descripcion,Severidad,Accion_Sugerida\n";
     details.forEach(row => { csvContent += `"${row.idInterno}","${row.idObligacion}","${row.regla}","${row.columna}","${row.descripcion}","${row.severidad}","${row.accion}"\n`; });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.setAttribute("download", `Detalle_Errores_MURIC_${initPeriod.replace('-','')}.csv`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Detalle_Errores_MURIC_${initPeriod.replace('-','')}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
 
   const exportToExcel = () => {
     const details = getDetailedErrors();
-    let tableStr = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"></head><body><table border="1"><tr style="background-color:#0f172a; color:white;"><th>ID Interno</th><th>ID Obligacion</th><th>Regla</th><th>Columna</th><th>Descripcion</th><th>Severidad</th><th>Accion Sugerida</th></tr>`;
+    let tableStr = `<html xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <head><meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"></head>
+      <body><table border="1">
+        <tr style="background-color:#0f172a; color:white;">
+          <th>ID Interno</th><th>ID Obligacion</th><th>Regla</th><th>Columna</th><th>Descripcion</th><th>Severidad</th><th>Accion Sugerida</th>
+        </tr>`;
     details.forEach(row => { tableStr += `<tr><td>${row.idInterno}</td><td>${row.idObligacion}</td><td>${row.regla}</td><td>${row.columna}</td><td>${row.descripcion}</td><td>${row.severidad}</td><td>${row.accion}</td></tr>`; });
     tableStr += `</table></body></html>`;
     const blob = new Blob([tableStr], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Detalle_Errores_MURIC_${initPeriod.replace('-','')}.xls`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = `Detalle_Errores_MURIC_${initPeriod.replace('-','')}.xls`;
     document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
 
+  // Dinamismo de Saldos según Período
   const getSummaryStats = (periodStr, totalRecs) => {
     const seed = periodStr ? periodStr.charCodeAt(periodStr.length - 1) : 1;
-    const multiplier = 1 + (seed % 5) * 0.15; 
+    const multiplier = 1 + (seed % 5) * 0.15; // varía de 1.0 a 1.6
+    
     return {
       comercial: { count: Math.floor(totalRecs * 0.18), amount: (45.2 * multiplier).toFixed(1) },
       consumo: { count: Math.floor(totalRecs * 0.60), amount: (22.1 * multiplier).toFixed(1) },
@@ -218,7 +268,13 @@ const App = () => {
     const seed = periodStr ? periodStr.split('').reduce((a, b) => a + b.charCodeAt(0), 0) : 1;
     return Array.from({ length: 150 }).map((_, i) => {
       const baseSaldo = 15000000 + (((i+1) * 250000 * (seed % 10 || 1)) % 300000000);
-      return { idInterno: i + 1, idObligacion: `OBL-${(i+1).toString().padStart(7, '0')}`, tipo: (i+1) % 3 !== 0 ? 'Comercial' : 'Consumo', saldo: baseSaldo, calificacion: (i+1) % 4 !== 0 ? 'A' : 'B' };
+      return {
+        idInterno: i + 1,
+        idObligacion: `OBL-${(i+1).toString().padStart(7, '0')}`,
+        tipo: (i+1) % 3 !== 0 ? 'Comercial' : 'Consumo',
+        saldo: baseSaldo,
+        calificacion: (i+1) % 4 !== 0 ? 'A' : 'B'
+      };
     });
   };
 
@@ -247,12 +303,6 @@ const App = () => {
   const [modalReviewTab, setModalReviewTab] = useState('resumen');
   const [modalCurrentPage, setModalCurrentPage] = useState(1);
   const [modalDetailFilter, setModalDetailFilter] = useState('');
-  
-  // Linaje Dinámico y Acordeones
-  const [lineageModalItem, setLineageModalItem] = useState(null);
-  const [expandedLineageStep, setExpandedLineageStep] = useState(0);
-  const [lineageSearchQuery, setLineageSearchQuery] = useState('');
-  
   const [channel, setChannel] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [isAvroGenerated, setIsAvroGenerated] = useState(false);
@@ -260,10 +310,12 @@ const App = () => {
   const [isPartitioned, setIsPartitioned] = useState(false);
   const [transmitting, setTransmitting] = useState(false);
   const [transmitProgress, setTransmitProgress] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState('idle');
-  const [connectionStep, setConnectionStep] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState('idle'); // idle | connecting | connected
+  const [connectionStep, setConnectionStep] = useState(0); // 0: DNS, 1: Handshake, 2: Auth
   const [transmitETA, setTransmitETA] = useState(0);
   const [downloaded, setDownloaded] = useState(false);
+  
+  // Modal de Previsualización AVRO
   const [showAvroPreview, setShowAvroPreview] = useState(false);
   const [avroFilter, setAvroFilter] = useState('');
   const [avroCurrentPage, setAvroCurrentPage] = useState(1);
@@ -271,6 +323,7 @@ const App = () => {
   const FILE_SIZE_MB = 250; 
   const USUARIO_ACTUAL = "analista_regulatorio_01";
   
+  // Uso dinámico de saldos mockeados
   const activePeriod = selectedCorte ? selectedCorte.period : (detailModalItem ? detailModalItem.period : initPeriod);
   const mockRecordsData = useMemo(() => generateMockRecords(activePeriod), [activePeriod]);
   const activeStats = useMemo(() => getSummaryStats(activePeriod, selectedCorte ? selectedCorte.records : (detailModalItem ? detailModalItem.records : 2504120)), [activePeriod, selectedCorte, detailModalItem]);
@@ -287,6 +340,7 @@ const App = () => {
   const MODAL_TOTAL_PAGES = modalDetailFilter ? Math.ceil(modalFilteredDetails.length / 10) || 1 : Math.ceil(MODAL_TOTAL_RECORDS / 10);
   const modalCurrentDetails = modalDetailFilter ? modalFilteredDetails.slice((modalCurrentPage - 1) * 10, modalCurrentPage * 10) : mockRecordsData.slice(0, 10).map((r, i) => ({...r, idInterno: (modalCurrentPage - 1) * 10 + i + 1, idObligacion: `OBL-${((modalCurrentPage - 1) * 10 + i + 1).toString().padStart(7, '0')}`}));
 
+  // Generación Datos Demo Complejos para AVRO Preview
   const AVRO_TOTAL_RECORDS = selectedCorte ? selectedCorte.records : 2504120;
   const AVRO_ITEMS_PER_PAGE = 12;
   const filteredAvroCount = avroFilter ? Math.max(1, Math.floor(AVRO_TOTAL_RECORDS * 0.00005)) : AVRO_TOTAL_RECORDS; 
@@ -298,8 +352,10 @@ const App = () => {
     for (let i = 0; i < AVRO_ITEMS_PER_PAGE; i++) {
       const globalIdx = startIdx + i;
       if (globalIdx >= filteredAvroCount) break;
+      
       const isMora = globalIdx % 11 === 0;
       const tipoCredito = ['Comercial', 'Consumo', 'Hipotecario', 'Microcrédito'][globalIdx % 4];
+      
       data.push({
         idInterno: globalIdx + 1,
         tipoId: globalIdx % 5 === 0 ? 'NIT' : 'CC',
@@ -322,40 +378,6 @@ const App = () => {
     return data;
   }, [avroCurrentPage, avroFilter, filteredAvroCount]);
 
-  const filteredLineageRecords = useMemo(() => {
-    const base = [
-      { obl: 'OBL-7882221', doc: '800123456', nombre: 'Carlos Perez', cap: 45000000, int: 1500000, prov: 250000, mora: 0, fec: '2026-02-15', fecErr: '15/02/26', tipoDoc: 'CC', tipoDocOrig: '1', calif: 'A', califErr: 'A', error: null, moneda: 'COP', tipoCred: 'Consumo' },
-      { obl: 'OBL-7882222', doc: '900555666', nombre: 'Empresa XYZ', cap: 1200500, int: 0, prov: 0, mora: 15, fec: '2026-02-15', fecErr: '15/02/26', tipoDoc: 'NIT', tipoDocOrig: '2', calif: 'B', califErr: 'B', error: null, moneda: 'COP', tipoCred: 'Comercial' },
-      { obl: 'OBL-7882223', doc: '79555444', nombre: 'Maria Gomez', cap: 800000, int: 50000, prov: 10000, mora: 95, fec: '2026-02-15', fecErr: '2026-02-15', tipoDoc: 'CC', tipoDocOrig: '1', calif: 'C', califErr: 'Riesgo_Alto', error: 'Catálogo SFC', moneda: 'COP', tipoCred: 'Microcredito' },
-      { obl: 'OBL-7882224', doc: '901234567', nombre: 'Juan Lopera', cap: 5000000, int: 200000, prov: 0, mora: 0, fec: '2026-02-15', fecErr: '15-02-2026', tipoDoc: 'NI', tipoDocOrig: 'NULL', calif: 'A', califErr: 'A', error: 'Tipo Doc Nulo', moneda: 'USD', tipoCred: 'Hipotecario' }
-    ];
-    if (!lineageSearchQuery) return base.slice(0, 3);
-    const lowerQ = lineageSearchQuery.toLowerCase();
-    const matches = base.filter(r => r.obl.toLowerCase().includes(lowerQ) || r.doc.toLowerCase().includes(lowerQ) || r.nombre.toLowerCase().includes(lowerQ) || r.fec.toLowerCase().includes(lowerQ));
-    if (matches.length > 0) return matches;
-    const isObl = lineageSearchQuery.toUpperCase().startsWith('OBL');
-    return [{
-      obl: isObl ? lineageSearchQuery.toUpperCase() : `OBL-${Math.floor(Math.random() * 9000000)}`,
-      doc: lineageSearchQuery.replace(/\D/g,'') || '123456789', nombre: 'Cliente Encontrado', cap: Math.floor(Math.random() * 50000000) + 1000000, int: Math.floor(Math.random() * 1000000),
-      prov: 0, mora: 0, fec: '2026-02-15', fecErr: '15/02/2026', tipoDoc: 'CC', tipoDocOrig: '1', calif: 'A', califErr: 'A', error: null, moneda: 'COP', tipoCred: 'Consumo'
-    }];
-  }, [lineageSearchQuery]);
-
-  const handleExportLineage = () => {
-    let csvContent = "\uFEFFREPORTE DE TRAZABILIDAD Y LINAJE DE DATOS END-TO-END - MURIC\n";
-    csvContent += `Lote Procesado:,${lineageModalItem?.id}\nPeriodo:,${lineageModalItem?.label}\nFiltro Aplicado:,${lineageSearchQuery || 'Ninguno (Muestra General)'}\nFecha Generacion:,${new Date().toLocaleString()}\n\n`;
-    csvContent += "ID_Obligacion,Documento,Nombre_Cliente,Etapa_Proceso,Campo_Revisado,Valor_Original,Valor_Final,Estado_Regla,Observacion\n";
-    filteredLineageRecords.forEach(r => {
-        csvContent += `"${r.obl}","${r.doc}","${r.nombre}","1. Extraccion","TIPO_DOC","${r.tipoDocOrig}","${r.tipoDoc}","OK","Ingesta a Cache MURIC"\n`;
-        csvContent += `"${r.obl}","${r.doc}","${r.nombre}","2. Validacion","FECHA_DESEMBOLSO","${r.fecErr}","${r.fec}","${r.error ? 'SANEADO' : 'OK'}","${r.error || 'Cumple formato ISO'}"\n`;
-        csvContent += `"${r.obl}","${r.doc}","${r.nombre}","3. Consolidacion","SALDO_TOTAL","Disperso","${r.cap + r.int}","OK","Agrupacion de llaves maestras"\n`;
-        csvContent += `"${r.obl}","${r.doc}","${r.nombre}","4. Esquema_AVRO","ESTRUCTURA","Tabla_Relacional","Esquema_JSON","OK","Mapeo contra esquema MURIC_CARTERA"\n`;
-    });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.setAttribute("download", `Auditoria_Linaje_Trazabilidad_${lineageModalItem?.id}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
-  };
-
   const steps = ["Esquema", "Fuentes", "Revisión", "Canal", "Preparación", "Transmisión", "Resultado"];
 
   const registerApprovedLote = (periodStr) => {
@@ -363,10 +385,13 @@ const App = () => {
     const monthLabel = mesesFull[parseInt(month, 10) - 1];
     const loteId = `C-${year}${month}`;
     const currentDateTime = new Date().toLocaleString();
+
     setLotes(prevLotes => {
       const existingIndex = prevLotes.findIndex(l => l.period === periodStr);
       if (existingIndex >= 0) {
-        const newLotes = [...prevLotes]; newLotes[existingIndex] = { ...newLotes[existingIndex], estadoDatos: 'Aprobada', fechaAprobacion: currentDateTime }; return newLotes;
+        const newLotes = [...prevLotes];
+        newLotes[existingIndex] = { ...newLotes[existingIndex], estadoDatos: 'Aprobada', fechaAprobacion: currentDateTime };
+        return newLotes;
       } else {
         const newLote = { id: loteId, period: periodStr, label: `${monthLabel} ${year}`, source: 'db', sourceLabel: 'Extracción Inicial DB', records: Math.floor(Math.random() * 50000) + 2450000, estadoDatos: 'Aprobada', fechaAprobacion: currentDateTime, estadoAvro: 'Pendiente', estadoTransmision: 'Pendiente', fechaTransmision: '-', canal: '-', archivos: [], respuesta: '-' };
         return [newLote, ...prevLotes];
@@ -375,42 +400,110 @@ const App = () => {
   };
 
   const handleRestart = () => {
-    setStep(0); setHighestStep(0); setInitExtStatus('idle'); setInitExtProgress(0); setInitExtTab('todos'); setExpandedRule(null);
+    setStep(0);
+    setHighestStep(0); 
+    setInitExtStatus('idle'); setInitExtProgress(0); setInitExtTab('todos'); setExpandedRule(null);
     setSaneamientoStatus('idle'); setSaneamientoLogs([]); setHasCriticalErrors(false); setIsSanitized(false); setShowSaneamientoConsole(true);
-    setSchemaMode('select'); setSelectedSchemaVersion('v1.3'); setSchemaValid(true); setSourceTab('cortes'); setNewSourceType(null); setNewSourceFile(false); setDataSource(null); setSelectedCorte(null);
-    setExtracting(false); setExtractProgress(0); setExtractCurrentPage(1); setReviewTab('resumen'); setCurrentPage(1); setDetailFilter(''); setFilterStatus('Pendiente'); setFilterPeriod(getCurrentMonthStr());
-    setHistFilterPeriod(''); setHistFilterStatus('Todos'); setHistCurrentPage(1); setChannel(null); setPreparing(false); setIsAvroGenerated(false); setIsSigned(false); setIsPartitioned(false);
-    setTransmitting(false); setTransmitProgress(0); setTransmitETA(0); setDownloaded(false); setConnectionStatus('idle'); setConnectionStep(0); setShowAvroPreview(false); setAvroCurrentPage(1); setAvroFilter('');
+    setSchemaMode('select'); setSelectedSchemaVersion('v1.3'); setSchemaValid(true);
+    setSourceTab('cortes'); setNewSourceType(null); setNewSourceFile(false); setDataSource(null); setSelectedCorte(null);
+    setExtracting(false); setExtractProgress(0); setExtractCurrentPage(1); 
+    setReviewTab('resumen'); setCurrentPage(1); setDetailFilter(''); setFilterStatus('Todos'); setFilterPeriod(getCurrentMonthStr());
+    setHistFilterPeriod(''); setHistFilterStatus('Todos'); setHistCurrentPage(1);
+    setChannel(null); setPreparing(false); setIsAvroGenerated(false); setIsSigned(false); setIsPartitioned(false);
+    setTransmitting(false); setTransmitProgress(0); setTransmitETA(0); setDownloaded(false); 
+    setConnectionStatus('idle'); setConnectionStep(0); setShowAvroPreview(false); setAvroCurrentPage(1); setAvroFilter('');
   };
 
   const handleInitialExtract = () => {
     if(!initPeriod) { alert("Por favor seleccione un período de corte a evaluar."); return; }
-    setInitExtStatus('loading'); setInitExtProgress(0); setExpandedRule(null); setSaneamientoStatus('idle'); setIsSanitized(false); setShowSaneamientoConsole(true); setHighestStep(0); 
-    setExtractionLogs(["[SYSTEM] Estableciendo conexión segura con la base de datos central..."]); setHasCriticalErrors(true); 
-    const extractStages = ["[DB] Extrayendo tabla corporativa SCH_CARTERA_VAL...", "[OK] 2,504,120 registros mapeados satisfactoriamente en memoria.", "[SYSTEM] Iniciando motor de validación regulatorio MURIC v1.3...", "[VALIDATION] Corriendo reglas de estructura referencial...", "[VALIDATION] Ejecutando rutinas operativas y de coherencia cruzada...", "[VALIDATION] Validando negocio corporativo y excepciones...", "[OK] Evaluación de calidad finalizada. Desplegando tablero de anomalías..."];
-    let p = 0; let stageIdx = 0;
+    
+    setInitExtStatus('loading'); 
+    setInitExtProgress(0); 
+    setExpandedRule(null); 
+    setSaneamientoStatus('idle'); 
+    setIsSanitized(false);
+    setShowSaneamientoConsole(true);
+    setHighestStep(0); 
+    setExtractionLogs(["[SYSTEM] Estableciendo conexión segura con la base de datos central..."]);
+    
+    setHasCriticalErrors(true); 
+    
+    const extractStages = [
+      "[DB] Extrayendo tabla corporativa SCH_CARTERA_VAL...",
+      "[OK] 2,504,120 registros mapeados satisfactoriamente en memoria.",
+      "[SYSTEM] Iniciando motor de validación regulatorio MURIC v1.3...",
+      "[VALIDATION] Corriendo reglas de estructura referencial...",
+      "[VALIDATION] Ejecutando rutinas operativas y de coherencia cruzada...",
+      "[VALIDATION] Validando negocio corporativo y excepciones...",
+      "[OK] Evaluación de calidad finalizada. Desplegando tablero de anomalías..."
+    ];
+
+    let p = 0;
+    let stageIdx = 0;
+    
     const processExtractionStep = () => {
       p += Math.floor(Math.random() * 15) + 3; 
-      if (p >= (stageIdx + 1) * 14 && stageIdx < extractStages.length) { setExtractionLogs(prev => [...prev, extractStages[stageIdx]]); stageIdx++; }
-      if (p >= 100) { setInitExtProgress(100); setTimeout(() => { setInitExtStatus('completed'); setInitExtTab('todos'); }, 500); } 
-      else { setInitExtProgress(Math.min(p, 99)); setTimeout(processExtractionStep, Math.floor(Math.random() * 350) + 150); }
+      
+      if (p >= (stageIdx + 1) * 14 && stageIdx < extractStages.length) {
+          const currentLog = extractStages[stageIdx];
+          setExtractionLogs(prev => [...prev, currentLog]);
+          stageIdx++;
+      }
+
+      if (p >= 100) {
+        setInitExtProgress(100);
+        setTimeout(() => { 
+          setInitExtStatus('completed'); 
+          setInitExtTab('todos'); 
+        }, 500);
+      } else { 
+        setInitExtProgress(Math.min(p, 99)); 
+        const nextDelay = Math.floor(Math.random() * 350) + 150; 
+        setTimeout(processExtractionStep, nextDelay);
+      }
     };
+    
     setTimeout(processExtractionStep, 200);
   };
 
   const handleApplyCorrections = () => {
-    setSaneamientoStatus('running'); setShowSaneamientoConsole(true); setSaneamientoLogs(["[SYSTEM] Iniciando motor de saneamiento automático (ETL)..."]);
-    const stages = ["[OK] Regla VAL-EST-04: Corrección de formato ISO en FECHA_DESEMBOLSO (15 registros ajustados)", "[OK] Regla VAL-NOR-08: Mapeo de catálogo SFC en CALIFICACION_RIESGO (150 registros cruzados)", "[OK] Regla VAL-NOR-11: Ajuste de usura en TASA_INTERES_EA (50 registros truncados al límite legal vigente)", "[OK] Regla VAL-OPE-12: Justificación automática de variación de SALDO_CAPITAL completada", "[OK] Regla VAL-NEG-02: Asignación de garantía 'Sin Garantía' para obligaciones comerciales no idóneas", "[INFO] Evaluando campos nulos críticos en TIPO_IDENTIFICACION e ID_OBLIGACION..."];
+    setSaneamientoStatus('running');
+    setShowSaneamientoConsole(true);
+    setSaneamientoLogs(["[SYSTEM] Iniciando motor de saneamiento automático (ETL)..."]);
+    
+    const stages = [
+      "[OK] Regla VAL-EST-04: Corrección de formato ISO en FECHA_DESEMBOLSO (15 registros ajustados)",
+      "[OK] Regla VAL-NOR-08: Mapeo de catálogo SFC en CALIFICACION_RIESGO (150 registros cruzados)",
+      "[OK] Regla VAL-NOR-11: Ajuste de usura en TASA_INTERES_EA (50 registros truncados al límite legal vigente)",
+      "[OK] Regla VAL-OPE-12: Justificación automática de variación de SALDO_CAPITAL completada",
+      "[OK] Regla VAL-NEG-02: Asignación de garantía 'Sin Garantía' para obligaciones comerciales no idóneas",
+      "[INFO] Evaluando campos nulos críticos en TIPO_IDENTIFICACION e ID_OBLIGACION..."
+    ];
+
     let stepIndex = 0;
     const processCorrectionStep = () => {
-      if (stepIndex < stages.length) { setSaneamientoLogs(prev => [...prev, stages[stepIndex]]); stepIndex++; setTimeout(processCorrectionStep, Math.floor(Math.random() * 600) + 200); } 
-      else {
+      if (stepIndex < stages.length) {
+        const currentLog = stages[stepIndex];
+        setSaneamientoLogs(prev => [...prev, currentLog]);
+        stepIndex++;
+        const nextDelay = Math.floor(Math.random() * 600) + 200; 
+        setTimeout(processCorrectionStep, nextDelay);
+      } else {
         setTimeout(() => {
-          if (simularIrreparables) { setSaneamientoLogs(prev => [...prev, "[ERROR] 5 registros detectados con ID_OBLIGACION o TERCERO totalmente en blanco.", "[ERROR] Imposible inferir datos estructurales. Rechazo de la fuente originadora.", "[FAIL] Pipeline de saneamiento abortado. Requiere corrección manual."]); setSaneamientoStatus('partial'); } 
-          else { setSaneamientoLogs(prev => [...prev, "[OK] 105 registros con TIPO_IDENTIFICACION vacío reemplazados por valor default corporativo 'NI'.", "[SUCCESS] Saneamiento y limpieza total exitosa. 0 anomalías restantes."]); setSaneamientoStatus('success'); setHasCriticalErrors(false); setIsSanitized(true); registerApprovedLote(initPeriod); }
+          if (simularIrreparables) {
+             setSaneamientoLogs(prev => [...prev, "[ERROR] 5 registros detectados con ID_OBLIGACION o TERCERO totalmente en blanco.", "[ERROR] Imposible inferir datos estructurales. Rechazo de la fuente originadora.", "[FAIL] Pipeline de saneamiento abortado. Requiere corrección manual."]);
+             setSaneamientoStatus('partial');
+          } else {
+             setSaneamientoLogs(prev => [...prev, "[OK] 105 registros con TIPO_IDENTIFICACION vacío reemplazados por valor default corporativo 'NI'.", "[SUCCESS] Saneamiento y limpieza total exitosa. 0 anomalías restantes."]);
+             setSaneamientoStatus('success');
+             setHasCriticalErrors(false);
+             setIsSanitized(true);
+             registerApprovedLote(initPeriod);
+          }
         }, 800);
       }
     };
+    
     setTimeout(processCorrectionStep, 400);
   };
 
@@ -424,11 +517,18 @@ const App = () => {
       setSelectedCorte(fakeCorte); setDataSource(fakeCorte.source); setLotes(prev => [fakeCorte, ...prev]);
     }
     setExtracting(true); setExtractProgress(0);
+    
     let p = 0;
     const processExtraction = () => {
       p += Math.floor(Math.random() * 15) + 5; 
-      if (p >= 100) { setExtractProgress(100); setTimeout(() => setExtracting(false), 600); } 
-      else { setExtractProgress(Math.min(p, 99)); setTimeout(processExtraction, Math.floor(Math.random() * 300) + 150); }
+      if (p >= 100) { 
+        setExtractProgress(100);
+        setTimeout(() => setExtracting(false), 600); 
+      } else { 
+        setExtractProgress(Math.min(p, 99));
+        const delay = Math.floor(Math.random() * 300) + 150;
+        setTimeout(processExtraction, delay); 
+      }
     };
     setTimeout(processExtraction, 200);
   };
@@ -437,26 +537,42 @@ const App = () => {
     setPreparing(true);
     setTimeout(() => { 
       setIsAvroGenerated(true); 
+      // Extend delay for signing so user has time to see raw AVRO generated state
       setTimeout(() => { 
         setIsSigned(true); 
-        setTimeout(() => { setIsPartitioned(true); setPreparing(false); }, 1200); 
+        setTimeout(() => { 
+          setIsPartitioned(true); 
+          setPreparing(false); 
+        }, 1200); 
       }, 2500); 
     }, 1500);
   };
 
   const handleDownloadAvro = (e) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     const content = "Obj\x01\x04\x14avro.codec\x08null\x16avro.schema\xCA\x02{\"type\":\"record\",\"name\":\"Cartera_MURIC\",\"fields\":[{\"name\":\"idCliente\",\"type\":\"string\"},{\"name\":\"tipoCredito\",\"type\":\"string\"},{\"name\":\"saldoCapital\",\"type\":\"double\"}]}\x00\x00\x00\x00\x00\x00... (Binary Mock Payload)";
     const blob = new Blob([content], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.setAttribute("download", `muric_raw_${selectedCorte?.period.replace('-','') || '202603'}.avro`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `muric_raw_${selectedCorte?.period.replace('-','') || '202603'}.avro`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
 
   const handleTransmit = () => {
-    setTransmitting(true); setConnectionStatus('connecting'); setConnectionStep(0);
-    setTimeout(() => setConnectionStep(1), 1500); setTimeout(() => setConnectionStep(2), 3000);
+    setTransmitting(true); 
+    setConnectionStatus('connecting');
+    setConnectionStep(0);
+    
+    // Animación controlada por React state para la conexión
+    setTimeout(() => setConnectionStep(1), 1500);
+    setTimeout(() => setConnectionStep(2), 3000);
+    
+    // Termina conexión y pasa al envío de archivos
     setTimeout(() => {
-      setConnectionStatus('connected'); setTransmitProgress(0);
+      setConnectionStatus('connected');
+      setTransmitProgress(0);
       let p = 0; let timeRemaining = channel === 'REST' ? 8 : 12; setTransmitETA(timeRemaining);
       const interval = setInterval(() => {
         p += (100 / timeRemaining); timeRemaining -= 1;
@@ -476,7 +592,8 @@ const App = () => {
 
   const handleDownloadPDF = async (itemData) => {
     const item = itemData || selectedCorte;
-    if (!item) return; setDownloaded('loading');
+    if (!item) return;
+    setDownloaded('loading');
     try {
       if (!window.jspdf) {
         await new Promise((resolve, reject) => {
@@ -485,13 +602,19 @@ const App = () => {
       }
       const { jsPDF } = window.jspdf; const doc = new jsPDF();
       const primaryColor = [15, 23, 42]; const emeraldColor = [16, 185, 129]; const blueColor = [37, 99, 235];
-      const logoUrl = 'https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png'; let logoDataUrl = null;
-      try { const response = await fetch(logoUrl, { mode: 'cors' }); const blob = await response.blob(); logoDataUrl = await new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); }); } catch (err) { console.warn("CORS Error."); }
+      
+      const logoUrl = 'https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png';
+      let logoDataUrl = null;
+      try {
+        const response = await fetch(logoUrl, { mode: 'cors' }); const blob = await response.blob();
+        logoDataUrl = await new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); });
+      } catch (err) { console.warn("CORS evitó cargar la imagen en Base64. Se omitirá en el PDF para evitar solapamientos."); }
 
       doc.setFillColor(...primaryColor); doc.rect(0, 0, 210, 42, 'F');
       if (logoDataUrl) { doc.addImage(logoDataUrl, 'PNG', 12, 12, 45, 12); }
       doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text("Evidencia de Transmisión Ecosistema TÓTAL REPORT®", 200, 20, null, null, "right");
       doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text("Módulo de Reporte MURIC - Superintendencia Financiera", 200, 28, null, null, "right");
+      
       doc.setFillColor(...emeraldColor); doc.roundedRect(165, 48, 30, 7, 1, 1, 'F'); doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text(item.estadoTransmision.toUpperCase(), 180, 53, null, null, "center");
       doc.setTextColor(...blueColor); doc.setFontSize(12); doc.text("1. Información del Lote y Aprobación", 15, 58);
       doc.setDrawColor(200, 200, 200); doc.setFillColor(248, 250, 252); doc.roundedRect(15, 63, 180, 38, 2, 2, 'FD');
@@ -585,7 +708,10 @@ const App = () => {
 
   // --- RENDERIZADO DE PANTALLAS ---
 
+  // ETAPA 0: EXTRACCIÓN Y EVALUACIÓN INICIAL
   const renderScreenInitialExtraction = () => {
+    
+    // Si está cargando, mostramos la consola directamente reemplazando la vista
     if (initExtStatus === 'loading') {
        return (
         <div className="flex-1 max-w-5xl mx-auto w-full pt-10">
@@ -622,6 +748,8 @@ const App = () => {
     return (
       <div className="stage-transition flex flex-col xl:flex-row gap-6 max-w-7xl mx-auto h-full">
         <div className="flex-1 relative z-[60]">
+          
+          {/* ESTADO IDLE */}
           {initExtStatus === 'idle' && (
             <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm relative animate-in fade-in zoom-in-[0.98] duration-500">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-emerald-400 rounded-t-xl"></div>
@@ -636,6 +764,7 @@ const App = () => {
                     <PeriodPicker value={initPeriod} onChange={setInitPeriod} />
                   </div>
                 </div>
+                
                 <div className="flex space-x-3 w-full md:w-auto mt-2 md:mt-0">
                   <button onClick={handleInitialExtract} className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto text-white px-8 py-3 rounded-xl font-bold shadow-md transition-all flex items-center justify-center hover:-translate-y-0.5 hover:shadow-lg">
                     <Activity size={18} className="mr-2" /> Extraer y Evaluar Calidad
@@ -645,6 +774,7 @@ const App = () => {
             </div>
           )}
 
+          {/* ESTADO COMPLETED */}
           {initExtStatus === 'completed' && (
             <div className="space-y-6 animate-in fade-in duration-500 ease-out">
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-4">
@@ -684,6 +814,7 @@ const App = () => {
                 </div>
               </div>
 
+              {/* Box de Advertencia de Saneamiento */}
               {totalErrors > 0 && saneamientoStatus === 'idle' && (
                 <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex flex-col md:flex-row items-center justify-between">
@@ -694,6 +825,7 @@ const App = () => {
                           <p className="text-sm text-rose-700 mt-0.5">Debe procesar y sanear los registros con inconsistencias antes de poder avanzar al histórico y generar el reporte AVRO.</p>
                         </div>
                       </div>
+                      
                       <div className="flex flex-col items-end gap-3 w-full md:w-auto shrink-0 pl-0 md:pl-6 border-l-0 md:border-l border-rose-200">
                         <button onClick={() => setSimularIrreparables(!simularIrreparables)} className="flex items-center text-xs font-bold text-rose-600 hover:text-rose-800 transition-colors">
                           {simularIrreparables ? <ToggleRight size={24} className="mr-2"/> : <ToggleLeft size={24} className="mr-2"/>}
@@ -707,6 +839,7 @@ const App = () => {
                 </div>
               )}
 
+              {/* REEMPLAZO INLINE: Consola vs Tabla (No overlays absolutos) */}
               {(saneamientoStatus === 'running' || saneamientoStatus === 'partial' || (saneamientoStatus === 'success' && showSaneamientoConsole)) && saneamientoStatus !== 'idle' ? (
                 <div className="bg-[#0b1120] border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col h-[450px] animate-in fade-in zoom-in-[0.98] duration-500">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3 shrink-0">
@@ -858,6 +991,7 @@ const App = () => {
           )}
         </div>
         
+        {/* Sidebar Lateral Fijo */}
         <aside className="w-full xl:w-80 shrink-0">
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm sticky top-6">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-2">Control de la Etapa</h3>
@@ -978,9 +1112,6 @@ const App = () => {
                        <td className="px-6 py-4 text-right space-x-2">
                           <button onClick={() => {setDetailModalItem(c); setModalReviewTab('resumen'); setModalCurrentPage(1); setModalDetailFilter('');}} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 hover:-translate-y-0.5 transition-all inline-flex items-center shadow-sm">
                             <Eye size={14} className="mr-1"/> Detalle
-                          </button>
-                          <button onClick={() => {setLineageModalItem(c); setExpandedLineageStep(0); setLineageSearchQuery('');}} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:-translate-y-0.5 transition-all inline-flex items-center border border-indigo-100 shadow-sm">
-                            <Workflow size={14} className="mr-1"/> Linaje
                           </button>
                           {c.estadoTransmision === 'Transmitido' && (
                             <button onClick={() => setEvidenceModalItem(c)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 hover:-translate-y-0.5 transition-all inline-flex items-center border border-blue-100 shadow-sm">
@@ -2254,314 +2385,6 @@ const App = () => {
         </div>
       )}
 
-      {/* MODAL DE LINAJE DE DATOS */}
-      {lineageModalItem && (
-        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
-            
-            {/* Header del Modal */}
-            <div className="bg-[#0b1120] text-white p-6 flex justify-between items-center shrink-0">
-              <div>
-                <div className="flex items-center space-x-3 mb-1">
-                  <div className="p-2 bg-indigo-500/20 rounded-lg border border-indigo-400/30">
-                    <Workflow size={20} className="text-indigo-400"/>
-                  </div>
-                  <h3 className="font-bold text-xl tracking-tight">Trazabilidad y Linaje End-to-End</h3>
-                </div>
-                <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em]">Lote: {lineageModalItem.id} • Proceso MURIC v1.3</p>
-              </div>
-              <button onClick={() => setLineageModalItem(null)} className="bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white p-2 rounded-xl transition-all duration-300">
-                <X size={24}/>
-              </button>
-            </div>
-            
-            {/* Info Bar y Buscador */}
-            <div className="bg-slate-50 border-b border-slate-200 p-6 flex flex-col md:flex-row gap-6 md:items-center shadow-inner shrink-0">
-               <div className="flex flex-col">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Período Fiscal</span>
-                 <span className="text-slate-800 font-bold text-sm bg-white px-3 py-1 rounded-lg border border-slate-200">{lineageModalItem.label}</span>
-               </div>
-               
-               {/* Nuevo Buscador Global End-To-End */}
-               <div className="flex-1 min-w-[250px] w-full relative">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Rastreador de Datos (Filtro Global)</span>
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-indigo-500" />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por ID Obligación, Documento o Nombre..." 
-                        value={lineageSearchQuery}
-                        onChange={(e) => setLineageSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 hover:shadow-sm transition-shadow bg-white text-sm"
-                    />
-                  </div>
-               </div>
-
-               <div className="flex flex-col md:ml-auto">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 opacity-0 hidden md:block">Acción</span>
-                 <button onClick={handleExportLineage} className="w-full md:w-auto px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-lg transition-all hover:shadow-sm flex items-center justify-center shrink-0">
-                    <Download size={16} className="mr-2 text-slate-500"/> Exportar Auditoría (CSV)
-                 </button>
-               </div>
-            </div>
-
-            {/* Aviso de filtro activo */}
-            {lineageSearchQuery && (
-              <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2 flex items-center justify-center text-xs font-bold text-indigo-800 shrink-0">
-                <Filter size={14} className="mr-2 text-indigo-500" /> Mostrando la transformación de datos para la búsqueda: "{lineageSearchQuery}"
-              </div>
-            )}
-
-            {/* Contenido Scrolleable con Acordeones de Grillas */}
-            <div className="p-8 overflow-y-auto flex-1 bg-white custom-scrollbar space-y-8">
-               
-               {[
-                 { 
-                   title: '1. Origen y Extracción de Datos', 
-                   type: 'Extracción / Ingesta', 
-                   icon: Database, 
-                   color: 'text-blue-600 bg-blue-100',
-                   desc: 'Conexión inicial a la fuente corporativa y creación del espejo de datos en el entorno seguro MURIC.',
-                   antes: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center"><Database size={10} className="mr-1.5"/> Fuente: PRD_CARTERA_VAL (SQL SERVER)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2">TIPO_DOC</th><th className="p-2">NUM_DOC</th><th className="p-2">NOMBRE_CLI</th><th className="p-2 text-right">SALDO_CAP</th><th className="p-2 text-center">FEC_DESEM</th><th className="p-2 text-center">DIAS_MORA</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2 font-bold text-slate-800">{r.obl}</td>
-                                 <td className="p-2">{r.tipoDocOrig}</td>
-                                 <td className="p-2 font-bold">{r.doc}</td>
-                                 <td className="p-2 font-sans font-medium truncate max-w-[120px]">{r.nombre}</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}</td>
-                                 <td className="p-2 text-center">{r.fecErr}</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   ),
-                   despues: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><Layers size={10} className="mr-1.5"/> Caché: MEM_SFC_MURIC (Ingesta)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden">
-                           <thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200">
-                             <tr><th className="p-2">idObligacion</th><th className="p-2">tipoId</th><th className="p-2">identificacion</th><th className="p-2">nombreCompleto</th><th className="p-2 text-right">capital</th><th className="p-2 text-center">fechaDesembolso</th><th className="p-2 text-center">diasMora</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}>
-                                 <td className="p-2 font-bold">"{r.obl}"</td>
-                                 <td className="p-2">"{r.tipoDoc}"</td>
-                                 <td className="p-2 font-bold">"{r.doc}"</td>
-                                 <td className="p-2 font-sans font-medium truncate max-w-[120px]">"{r.nombre}"</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}.0</td>
-                                 <td className="p-2 text-center">"{r.fecErr}"</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   )
-                 },
-                 { 
-                   title: '2. Motor de Validaciones y Calidad', 
-                   type: 'Control Regulatorio', 
-                   icon: Filter, 
-                   color: 'text-indigo-600 bg-indigo-100',
-                   desc: 'Ejecución de reglas de calidad. Identificación de nulos, formatos prohibidos y aplicación de saneamiento automático.',
-                   antes: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center"><AlertTriangle size={10} className="mr-1.5"/> Registros a Evaluar (Errores resaltados)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">TIPO_ID</th><th className="p-2 text-center">CALIF</th><th className="p-2 text-center">FECHA_DESEM</th><th className="p-2 text-center">Hallazgo Principal</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className={`p-2 text-center ${r.error && r.tipoDocOrig !== r.tipoDoc ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.tipoDocOrig === 'NULL' ? 'NULL' : r.tipoDocOrig}</td>
-                                 <td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.califErr}</td>
-                                 <td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.fecErr}</td>
-                                 <td className="p-2 text-center">{r.error ? <span className="text-rose-700 bg-rose-100 px-2 py-0.5 rounded font-bold shadow-sm">{r.error}</span> : <span className="text-slate-400">Sin anomalías</span>}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   ),
-                   despues: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-indigo-600 uppercase flex items-center"><CheckCircle2 size={10} className="mr-1.5"/> Registros Saneados (Aprobados)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-indigo-200 rounded-lg overflow-hidden">
-                           <thead className="bg-indigo-50 text-indigo-700 border-b border-indigo-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">tipoId</th><th className="p-2 text-center">calificacion</th><th className="p-2 text-center">fechaDesembolso</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-indigo-100 text-indigo-900 bg-indigo-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-indigo-100/30' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className={`p-2 text-center ${r.error && r.tipoDocOrig !== r.tipoDoc ? 'text-emerald-600 font-bold' : ''}`}>"{r.tipoDoc}"</td>
-                                 <td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'text-emerald-600 font-bold' : ''}`}>"{r.calif}"</td>
-                                 <td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'text-emerald-600 font-bold' : ''}`}>"{r.fec}"</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   )
-                 },
-                 { 
-                   title: '3. Consolidación del Lote Analítico', 
-                   type: 'Agrupación', 
-                   icon: Layers, 
-                   color: 'text-emerald-600 bg-emerald-100',
-                   desc: 'Unificación de conceptos financieros de la misma obligación. Múltiples registros transaccionales se agrupan en uno solo para el reporte final.',
-                   antes: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Registros Dispersos por Operación</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">LLAVE (DOC+OBL)</th><th className="p-2">CONCEPTO_ORIGEN</th><th className="p-2 text-center">MONEDA</th><th className="p-2 text-right">VALOR_ORIGEN</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <React.Fragment key={i}>
-                                 <tr><td className="p-2 font-bold text-slate-800" rowSpan={3}>{r.doc} - {r.obl}</td><td className="p-2 text-blue-600">Capital</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.cap.toLocaleString()}</td></tr>
-                                 <tr className="border-l-2 border-slate-200"><td className="p-2 text-blue-600">Interes</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.int.toLocaleString()}</td></tr>
-                                 <tr className="border-l-2 border-slate-200 border-b-2 border-b-slate-300 bg-slate-50/50"><td className="p-2 text-blue-600">Provision</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.prov.toLocaleString()}</td></tr>
-                               </React.Fragment>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   ),
-                   despues: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-emerald-600 uppercase">Registro Único Consolidado</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden">
-                           <thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200">
-                             <tr><th className="p-2">idObligacion</th><th className="p-2 text-right">totalCapital</th><th className="p-2 text-right">totalInteres</th><th className="p-2 text-right">totalProvision</th><th className="p-2 text-right">vlrTotalReporte</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}</td>
-                                 <td className="p-2 text-right">{r.int.toLocaleString()}</td>
-                                 <td className="p-2 text-right">{r.prov.toLocaleString()}</td>
-                                 <td className="p-2 text-right font-black text-emerald-700 bg-emerald-100/50">{(r.cap + r.int).toLocaleString()}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   )
-                 },
-                 { 
-                   title: '4. Aplicación del Esquema Normativo', 
-                   type: 'Mapeo AVRO', 
-                   icon: FileJson, 
-                   color: 'text-amber-600 bg-amber-100',
-                   desc: 'Traducción final de los datos corporativos al formato técnico exigido por el ente regulador (MURIC_CARTERA).',
-                   antes: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Estructura Relacional Interna</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">id_obligacion</th><th className="p-2 text-right">saldo_cap_actual</th><th className="p-2 text-center">moneda_origen</th><th className="p-2 text-center">dias_mora</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2">{r.obl}</td>
-                                 <td className="p-2 text-right">{r.cap}</td>
-                                 <td className="p-2 text-center">{r.moneda === 'COP' ? 'Pesos' : 'Dolares'}</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   ),
-                   despues: (
-                     <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-amber-600 uppercase">Validación Esquema JSON (.avsc)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-amber-200 rounded-lg overflow-hidden">
-                           <thead className="bg-amber-50 text-amber-800 border-b border-amber-200">
-                             <tr><th className="p-2">idObligacion (string)</th><th className="p-2 text-right">saldoCapital (double)</th><th className="p-2 text-center">tipoMoneda (enum)</th><th className="p-2 text-center">diasMora (int)</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-amber-50 text-amber-900 bg-amber-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-amber-100/30' : ''}>
-                                 <td className="p-2 font-bold">"{r.obl}"</td>
-                                 <td className="p-2 text-right">{r.cap}.0</td>
-                                 <td className="p-2 text-center bg-amber-100 font-bold">"{r.moneda}"</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     </div>
-                   )
-                 },
-                 { 
-                   title: '5. Serialización AVRO y Firma Digital', type: 'Seguridad', icon: ShieldCheck, color: 'text-purple-600 bg-purple-100', desc: 'Conversión binaria y aseguramiento criptográfico Hash SHA-256.',
-                   antes: (<div className="p-4 bg-slate-50 rounded-xl font-mono text-[10px] text-slate-600 border border-slate-200 leading-relaxed"><span className="font-bold text-slate-700">Formato:</span> JSON Intermedio Legible<br/><span className="font-bold text-slate-700">Registros Listos:</span> {lineageModalItem.records.toLocaleString()}<br/><span className="font-bold text-amber-600 mt-2 block">Estado Seguridad: Vulnerable (Sin protección criptográfica)</span></div>),
-                   despues: (<div className="p-4 bg-[#0b1120] rounded-xl font-mono text-[10px] text-purple-200 leading-relaxed"><span className="font-bold text-purple-400">Bloque Serializado:</span> Obj\x01\x04\x14avro.codec...<br/><span className="font-bold text-purple-400">Peso Optimizado:</span> ~250 MB<br/><span className="font-bold text-emerald-400 mt-2 block">✔ Hash: 8A4B...9F21 (Firmado PGP RSA-2048)</span></div>)
-                 },
-                   { 
-                   title: '6. Transmisión Oficial a SFC', type: 'Envío', icon: Activity, color: 'text-blue-600 bg-blue-100', desc: 'Entrega final y certificación en servidores SFC.',
-                   antes: (<div className="p-4 bg-slate-50 font-mono text-[10px] border rounded-xl border-slate-200 text-slate-600 leading-relaxed">Archivo empaquetado residiendo en servidor local interno.<br/><span className="font-bold text-amber-600 mt-1 block">Estado: Pendiente de autorización y envío.</span></div>),
-                   despues: (<div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl font-mono text-[10px] text-emerald-800 font-bold">Destino: api.superfinanciera.gov | 200 OK | ID: RCV-2026-A101</div>)
-                 }
-               ].map((step, idx, arr) => (
-                 <div key={idx} className="flex items-start relative mb-6">
-                   {idx !== arr.length - 1 && (<div className="absolute left-[23px] top-[46px] bottom-[-32px] w-[2px] z-0 bg-slate-200"></div>)}
-                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 z-10 border-4 border-white shadow-sm ${step.color}`}><step.icon size={20} /></div>
-                   <div className="ml-6 flex-1 bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                     <div onClick={() => setExpandedLineageStep(expandedLineageStep === idx ? null : idx)} className="flex justify-between items-start cursor-pointer group">
-                       <div><h4 className="text-base font-bold text-slate-800">{step.title} <span className="ml-2 text-[9px] bg-slate-100 px-2 py-0.5 rounded uppercase">{step.type}</span></h4><p className="text-xs text-slate-500 mt-1">{step.desc}</p></div>
-                       <ChevronDown size={20} className={`text-slate-400 group-hover:text-indigo-500 transition-transform ${expandedLineageStep === idx ? 'rotate-180' : ''}`} />
-                     </div>
-                     {expandedLineageStep === idx && (
-                       <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 lg:grid-cols-2 gap-6 relative animate-in fade-in">
-                           <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center shadow-sm text-slate-400 z-20"><ArrowRight size={14} /></div>
-                           <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-slate-200 text-slate-700 text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Estado Entrada</span>{step.antes}</div>
-                           <div className="bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Resultado Final</span>{step.despues}</div>
-                       </div>
-                     )}
-                   </div>
-                 </div>
-               ))}
-            </div>
-            
-            <div className="p-5 border-t border-slate-200 bg-white flex justify-end shrink-0"><button onClick={() => setLineageModalItem(null)} className="px-6 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900">Cerrar Trazabilidad</button></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
