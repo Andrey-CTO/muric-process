@@ -5,8 +5,7 @@ import {
   CheckCircle2, Terminal, FileJson, Database, FileSpreadsheet, FileSignature, 
   Scissors, Key, CheckSquare, Zap, FileText, FileArchive, Search, Calendar,
   RotateCcw, Filter, PieChart, Users, ListFilter, Shield, Layers, Eye, X, Link,
-  AlertOctagon, ChevronDown, Check, FileWarning, Sliders, ToggleLeft, ToggleRight, Settings,
-  Workflow
+  AlertOctagon, ChevronDown, Sliders, ToggleLeft, ToggleRight, Workflow
 } from 'lucide-react';
 
 const getCurrentMonthStr = () => {
@@ -242,17 +241,21 @@ const App = () => {
   const [reviewTab, setReviewTab] = useState('resumen');
   const [currentPage, setCurrentPage] = useState(1);
   const [detailFilter, setDetailFilter] = useState('');
-  const [evidenceModalItem, setEvidenceModalItem] = useState(null);
+  
+  // Modales
   const [detailModalItem, setDetailModalItem] = useState(null);
   const [modalReviewTab, setModalReviewTab] = useState('resumen');
   const [modalCurrentPage, setModalCurrentPage] = useState(1);
   const [modalDetailFilter, setModalDetailFilter] = useState('');
-  
-  // Linaje Dinámico y Acordeones
+  const [evidenceModalItem, setEvidenceModalItem] = useState(null);
+  const [showAvroPreview, setShowAvroPreview] = useState(false);
+  const [avroFilter, setAvroFilter] = useState('');
+  const [avroCurrentPage, setAvroCurrentPage] = useState(1);
   const [lineageModalItem, setLineageModalItem] = useState(null);
   const [expandedLineageStep, setExpandedLineageStep] = useState(0);
   const [lineageSearchQuery, setLineageSearchQuery] = useState('');
   
+  // Transmision
   const [channel, setChannel] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [isAvroGenerated, setIsAvroGenerated] = useState(false);
@@ -264,9 +267,6 @@ const App = () => {
   const [connectionStep, setConnectionStep] = useState(0);
   const [transmitETA, setTransmitETA] = useState(0);
   const [downloaded, setDownloaded] = useState(false);
-  const [showAvroPreview, setShowAvroPreview] = useState(false);
-  const [avroFilter, setAvroFilter] = useState('');
-  const [avroCurrentPage, setAvroCurrentPage] = useState(1);
 
   const FILE_SIZE_MB = 250; 
   const USUARIO_ACTUAL = "analista_regulatorio_01";
@@ -336,7 +336,7 @@ const App = () => {
     const isObl = lineageSearchQuery.toUpperCase().startsWith('OBL');
     return [{
       obl: isObl ? lineageSearchQuery.toUpperCase() : `OBL-${Math.floor(Math.random() * 9000000)}`,
-      doc: lineageSearchQuery.replace(/\D/g,'') || '123456789', nombre: 'Cliente Encontrado', cap: Math.floor(Math.random() * 50000000) + 1000000, int: Math.floor(Math.random() * 1000000),
+      doc: lineageSearchQuery.replace(/[^0-9]/g,'') || '123456789', nombre: 'Cliente Encontrado', cap: Math.floor(Math.random() * 50000000) + 1000000, int: Math.floor(Math.random() * 1000000),
       prov: 0, mora: 0, fec: '2026-02-15', fecErr: '15/02/2026', tipoDoc: 'CC', tipoDocOrig: '1', calif: 'A', califErr: 'A', error: null, moneda: 'COP', tipoCred: 'Consumo'
     }];
   }, [lineageSearchQuery]);
@@ -520,14 +520,14 @@ const App = () => {
       const selloY = Math.max(193, startY + 5);
       doc.setDrawColor(...primaryColor); doc.setLineWidth(0.5); doc.setFillColor(245, 247, 250); doc.roundedRect(15, selloY, 180, 85, 2, 2, 'FD');
       doc.setFillColor(...primaryColor); doc.roundedRect(15, selloY, 180, 9, 2, 2, 'F'); doc.rect(15, selloY + 4, 180, 5, 'F'); 
-      doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text("SELLO CRIPTOGRÁFICO AVANZADO - INTEGRIDAD Y NO REPUDIO", 105, selloY + 6, null, null, "center");
+      doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text("SELLO CRIPTOGRÁFICO - INTEGRIDAD Y NO REPUDIO", 105, selloY + 6, null, null, "center");
 
       doc.setTextColor(50, 50, 50); doc.setFontSize(8); let sy = selloY + 16;
       doc.setFont("helvetica", "bold"); doc.text("Hash del Documento (SHA-256):", 20, sy); sy += 4; doc.setFont("courier", "normal"); doc.text("C9F2A1F4B13E5A7C7D4E8F6D1A8A9F43B7D0E5C4A2F6A3B9D7E1C2F3A4B5D6E7", 20, sy);
       sy += 8; doc.setFont("helvetica", "bold"); doc.text("Hash del Archivo Transmitido (SHA-256):", 20, sy); sy += 4; doc.setFont("courier", "normal"); doc.text("A7F5F35426B927411FC9231B56382173B0BEB8F9D1FCEBB6F3EAD7B32A67F8A4", 20, sy);
       sy += 8; doc.setFont("helvetica", "bold"); doc.text("Firma Digital Institucional:", 20, sy); sy += 4; doc.setFont("helvetica", "normal"); doc.text("Algoritmo: RSA-SHA256   |   Certificado: Certicámara   |   Serial: 3F4A8C9B1123", 20, sy);
       sy += 8; doc.setFont("helvetica", "bold"); doc.text("Marca de Tiempo (TSA - UTC):", 20, sy); doc.text("ID de Transmisión:", 100, sy);
-      sy += 4; doc.setFont("courier", "normal"); const currentIso = new Date().toISOString(); doc.text(currentIso.replace(/\.\d{3}Z$/, 'Z'), 20, sy); doc.text(`MURIC-${item.period.replace('-', '')}-000184`, 100, sy);
+      sy += 4; doc.setFont("courier", "normal"); const currentIso = new Date().toISOString(); doc.text(currentIso.split('.')[0] + 'Z', 20, sy); doc.text(`MURIC-${item.period.replace('-', '')}-000184`, 100, sy);
       sy += 8; doc.setFont("helvetica", "bold"); doc.text("Canal de Transmisión:", 20, sy); doc.text("Estado de Verificación:", 100, sy);
       sy += 4; doc.setFont("helvetica", "normal"); doc.text(item.canal, 20, sy); doc.setTextColor(22, 163, 74); doc.setFont("helvetica", "bold"); doc.text("✔ Integridad y Origen Verificados", 100, sy);
 
@@ -583,8 +583,6 @@ const App = () => {
     );
   };
 
-  // --- RENDERIZADO DE PANTALLAS ---
-
   const renderScreenInitialExtraction = () => {
     if (initExtStatus === 'loading') {
        return (
@@ -603,11 +601,14 @@ const App = () => {
                      <span className="text-blue-400">{initExtProgress}%</span>
                  </div>
                  <div ref={extractionConsoleRef} className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar flex flex-col justify-end">
-                    {extractionLogs.map((log, i) => (
-                       <div key={i} className={`${log.includes('[ERROR]') ? 'text-rose-400' : log.includes('[OK]') ? 'text-emerald-400' : log.includes('[VALIDATION]') ? 'text-purple-400' : 'text-blue-300'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                         {log}
-                       </div>
-                    ))}
+                    {extractionLogs.map((log, i) => {
+                       const safeLog = log || '';
+                       return (
+                         <div key={i} className={`${safeLog.includes('[ERROR]') ? 'text-rose-400' : safeLog.includes('[OK]') ? 'text-emerald-400' : safeLog.includes('[VALIDATION]') ? 'text-purple-400' : 'text-blue-300'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                           {safeLog}
+                         </div>
+                       );
+                    })}
                     <div className="text-slate-500 animate-pulse mt-2">_</div>
                  </div>
                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-800">
@@ -904,7 +905,7 @@ const App = () => {
   const renderDashboardHistorico = () => {
     const filteredLotes = lotes.filter(c => {
       const matchPeriod = histFilterPeriod === '' || c.period === histFilterPeriod;
-      const matchStatus = histFilterStatus === 'Todos' || c.estadoTransmision === filterStatus;
+      const matchStatus = histFilterStatus === 'Todos' || c.estadoTransmision === histFilterStatus;
       return matchPeriod && matchStatus;
     });
 
@@ -917,7 +918,7 @@ const App = () => {
         <div className="bg-gradient-to-r from-[#0b1120] to-blue-900 rounded-2xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 transform transition-all hover:shadow-2xl">
           <div>
             <img src="https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png" alt="TÓTAL REPORT Logo" className="h-12 mb-3 object-contain" />
-            <p className="text-blue-200">Gestión y Transmisión de Reporte MURIC a la Superintendencia Financiera.</p>
+            <p className="text-blue-200">Gestión y Transmisión de Reporte MURIC.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <button onClick={() => setStep(0)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-blue-500/30 hover:-translate-y-1 transition-all flex items-center justify-center shrink-0">
@@ -940,7 +941,7 @@ const App = () => {
                  <PeriodPicker value={histFilterPeriod} onChange={(v) => {setHistFilterPeriod(v); setHistCurrentPage(1);}} placeholder="Todos los Periodos" />
                </div>
                <div className="bg-white border border-slate-300 rounded-lg p-2 shadow-sm hover:border-blue-400 transition-colors w-full sm:w-auto">
-                 <select value={histFilterStatus} onChange={(e) => {setFilterStatus(e.target.value); setHistCurrentPage(1);}} className="text-sm font-bold text-slate-800 outline-none bg-transparent cursor-pointer w-full">
+                 <select value={histFilterStatus} onChange={(e) => {setHistFilterStatus(e.target.value); setHistCurrentPage(1);}} className="text-sm font-bold text-slate-800 outline-none bg-transparent cursor-pointer w-full">
                    <option value="Todos">Todos los Estados</option>
                    <option value="Transmitido">Transmitidos</option>
                    <option value="Pendiente">Pendientes</option>
@@ -1892,7 +1893,7 @@ const App = () => {
           <img src="https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png" alt="TÓTAL REPORT Logo" className="h-6 object-contain mr-2" />
           <div className="hidden md:block">
             <h1 className="font-bold text-white leading-tight">Módulo de Transmisión MURIC</h1>
-            <p className="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Plataforma Empresarial</p>
+            <p className="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Ecosistema de Cumplimiento Regulatorio</p>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
@@ -1994,105 +1995,7 @@ const App = () => {
         </div>
       )}
 
-      {/* MODAL DE PREVISUALIZACION DE AVRO */}
-      {showAvroPreview && (
-        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
-             {/* Modal Header */}
-             <div className="bg-white border-b border-slate-200 p-5 flex justify-between items-center shrink-0">
-               <div className="flex items-center">
-                 <FileJson size={20} className="mr-3 text-blue-600"/> 
-                 <h3 className="font-bold text-slate-800 text-lg mr-4">Previsualización de Datos Serializados (AVRO)</h3>
-                 <span className="bg-emerald-50 text-emerald-800 px-3 py-1 rounded-md text-xs font-bold border border-emerald-200 flex items-center">
-                   <CheckCircle2 size={14} className="mr-1.5 text-emerald-500"/> Estructura Validada
-                 </span>
-               </div>
-               <button onClick={() => setShowAvroPreview(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
-             </div>
-             
-             {/* Toolbar: Search & Pagination info */}
-             <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center text-sm gap-4 shrink-0">
-               <div className="relative w-full sm:w-80">
-                 <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                 <input 
-                   type="text" 
-                   placeholder="Buscar por ID, NIT o Nombre..." 
-                   value={avroFilter}
-                   onChange={(e) => {setAvroFilter(e.target.value); setAvroCurrentPage(1);}}
-                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 font-medium hover:shadow-sm transition-shadow bg-white"
-                 />
-               </div>
-               <div className="flex items-center space-x-4">
-                 <span className="text-slate-600 font-medium text-xs">
-                   {filteredAvroCount > 0 ? (<>Mostrando <strong>{((avroCurrentPage - 1) * AVRO_ITEMS_PER_PAGE) + 1} a {Math.min(avroCurrentPage * AVRO_ITEMS_PER_PAGE, filteredAvroCount)}</strong> de <strong>{filteredAvroCount.toLocaleString()}</strong></>) : '0 resultados'}
-                 </span>
-                 <div className="flex items-center space-x-2">
-                   <button onClick={() => setAvroCurrentPage(p => Math.max(1, p - 1))} disabled={avroCurrentPage === 1} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Anterior</button>
-                   <span className="font-bold text-slate-700 text-xs">Pág {avroCurrentPage} de {avroTotalPages}</span>
-                   <button onClick={() => setAvroCurrentPage(p => Math.min(avroTotalPages, p + 1))} disabled={avroCurrentPage === avroTotalPages || avroTotalPages === 0} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-blue-600 disabled:opacity-50 hover:bg-blue-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Siguiente</button>
-                 </div>
-               </div>
-             </div>
-
-             {/* Table */}
-             <div className="overflow-y-auto flex-1 p-0 bg-white">
-               <table className="w-full text-sm text-left whitespace-nowrap">
-                 <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-                   <tr>
-                     <th className="px-6 py-3 font-bold">Tipo ID</th>
-                     <th className="px-6 py-3 font-bold">ID Cliente</th>
-                     <th className="px-6 py-3 font-bold">Nombre / Razón Social</th>
-                     <th className="px-6 py-3 font-bold">ID Obligación</th>
-                     <th className="px-6 py-3 font-bold">Tipo Crédito</th>
-                     <th className="px-6 py-3 font-bold text-right">Saldo Capital</th>
-                     <th className="px-6 py-3 font-bold text-right">Provisión</th>
-                     <th className="px-6 py-3 font-bold text-center">Días Mora</th>
-                     <th className="px-6 py-3 font-bold text-center">Calif.</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100 text-xs font-mono">
-                   {currentAvroData.length > 0 ? currentAvroData.map((r, i) => (
-                      <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-3 text-slate-500">{r.tipoId}</td>
-                        <td className="px-6 py-3 text-slate-800 font-bold">{r.idCliente}</td>
-                        <td className="px-6 py-3 font-sans font-medium text-slate-700 truncate max-w-[200px]">{r.nombre}</td>
-                        <td className="px-6 py-3 text-blue-700 bg-blue-50/50 px-2 rounded font-bold">{r.idObligacion}</td>
-                        <td className="px-6 py-3 font-sans text-slate-600">{r.tipoCredito}</td>
-                        <td className="px-6 py-3 text-right text-slate-800">$ {r.saldoCapital.toLocaleString()}</td>
-                        <td className="px-6 py-3 text-right text-slate-600">$ {r.provision.toLocaleString()}</td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`${r.diasMora > 0 ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'} px-2 py-0.5 rounded font-bold`}>{r.diasMora}</span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`${r.calificacion === 'A' ? 'text-emerald-600' : 'text-amber-600'} font-bold`}>{r.calificacion}</span>
-                        </td>
-                      </tr>
-                   )) : (
-                      <tr><td colSpan="9" className="px-6 py-12 text-center text-slate-500 font-sans text-sm">No se encontraron registros en el archivo AVRO que coincidan con la búsqueda.</td></tr>
-                   )}
-                 </tbody>
-               </table>
-             </div>
-
-             {/* Footer */}
-             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
-               <div className="text-xs text-slate-500 font-mono flex items-center">
-                 <ShieldCheck size={14} className="mr-1 text-emerald-500"/> Validado contra esquema {selectedSchemaVersion}
-               </div>
-               <div className="flex space-x-3">
-                 <button onClick={handleDownloadAvro} className="px-6 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-lg transition-all hover:shadow-sm flex items-center">
-                   <Download size={16} className="mr-2 text-slate-500"/> Descargar Archivo .AVRO
-                 </button>
-                 <button onClick={() => setShowAvroPreview(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-lg transition-all hover:shadow-md">
-                   Cerrar Vista
-                 </button>
-               </div>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODALES TRASLADADOS AL FINAL PARA NO PERDERSE NUNCA */}
+      {/* MODAL DE DETALLE Y REVISIÓN DE CORTES */}
       {detailModalItem && (
         <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -2205,6 +2108,7 @@ const App = () => {
         </div>
       )}
 
+      {/* MODAL DE EVIDENCIA */}
       {evidenceModalItem && (
         <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -2254,12 +2158,105 @@ const App = () => {
         </div>
       )}
 
+      {/* MODAL DE PREVISUALIZACION DE AVRO */}
+      {showAvroPreview && (
+        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+             <div className="bg-white border-b border-slate-200 p-5 flex justify-between items-center shrink-0">
+               <div className="flex items-center">
+                 <FileJson size={20} className="mr-3 text-blue-600"/> 
+                 <h3 className="font-bold text-slate-800 text-lg mr-4">Previsualización de Datos Serializados (AVRO)</h3>
+                 <span className="bg-emerald-50 text-emerald-800 px-3 py-1 rounded-md text-xs font-bold border border-emerald-200 flex items-center">
+                   <CheckCircle2 size={14} className="mr-1.5 text-emerald-500"/> Estructura Validada
+                 </span>
+               </div>
+               <button onClick={() => setShowAvroPreview(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
+             </div>
+             
+             <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center text-sm gap-4 shrink-0">
+               <div className="relative w-full sm:w-80">
+                 <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                 <input 
+                   type="text" 
+                   placeholder="Buscar por ID, NIT o Nombre..." 
+                   value={avroFilter}
+                   onChange={(e) => {setAvroFilter(e.target.value); setAvroCurrentPage(1);}}
+                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 font-medium hover:shadow-sm transition-shadow bg-white"
+                 />
+               </div>
+               <div className="flex items-center space-x-4">
+                 <span className="text-slate-600 font-medium text-xs">
+                   {filteredAvroCount > 0 ? (<>Mostrando <strong>{((avroCurrentPage - 1) * AVRO_ITEMS_PER_PAGE) + 1} a {Math.min(avroCurrentPage * AVRO_ITEMS_PER_PAGE, filteredAvroCount)}</strong> de <strong>{filteredAvroCount.toLocaleString()}</strong></>) : '0 resultados'}
+                 </span>
+                 <div className="flex items-center space-x-2">
+                   <button onClick={() => setAvroCurrentPage(p => Math.max(1, p - 1))} disabled={avroCurrentPage === 1} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Anterior</button>
+                   <span className="font-bold text-slate-700 text-xs">Pág {avroCurrentPage} de {avroTotalPages}</span>
+                   <button onClick={() => setAvroCurrentPage(p => Math.min(avroTotalPages, p + 1))} disabled={avroCurrentPage === avroTotalPages || avroTotalPages === 0} className="px-3 py-1.5 border border-slate-300 rounded bg-white text-blue-600 disabled:opacity-50 hover:bg-blue-50 transition-colors shadow-sm disabled:shadow-none text-xs font-bold">Siguiente</button>
+                 </div>
+               </div>
+             </div>
+
+             <div className="overflow-y-auto flex-1 p-0 bg-white">
+               <table className="w-full text-sm text-left whitespace-nowrap">
+                 <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                   <tr>
+                     <th className="px-6 py-3 font-bold">Tipo ID</th>
+                     <th className="px-6 py-3 font-bold">ID Cliente</th>
+                     <th className="px-6 py-3 font-bold">Nombre / Razón Social</th>
+                     <th className="px-6 py-3 font-bold">ID Obligación</th>
+                     <th className="px-6 py-3 font-bold">Tipo Crédito</th>
+                     <th className="px-6 py-3 font-bold text-right">Saldo Capital</th>
+                     <th className="px-6 py-3 font-bold text-right">Provisión</th>
+                     <th className="px-6 py-3 font-bold text-center">Días Mora</th>
+                     <th className="px-6 py-3 font-bold text-center">Calif.</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100 text-xs font-mono">
+                   {currentAvroData.length > 0 ? currentAvroData.map((r, i) => (
+                      <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-6 py-3 text-slate-500">{r.tipoId}</td>
+                        <td className="px-6 py-3 text-slate-800 font-bold">{r.idCliente}</td>
+                        <td className="px-6 py-3 font-sans font-medium text-slate-700 truncate max-w-[200px]">{r.nombre}</td>
+                        <td className="px-6 py-3 text-blue-700 bg-blue-50/50 px-2 rounded font-bold">{r.idObligacion}</td>
+                        <td className="px-6 py-3 font-sans text-slate-600">{r.tipoCredito}</td>
+                        <td className="px-6 py-3 text-right text-slate-800">$ {r.saldoCapital.toLocaleString()}</td>
+                        <td className="px-6 py-3 text-right text-slate-600">$ {r.provision.toLocaleString()}</td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`${r.diasMora > 0 ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'} px-2 py-0.5 rounded font-bold`}>{r.diasMora}</span>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`${r.calificacion === 'A' ? 'text-emerald-600' : 'text-amber-600'} font-bold`}>{r.calificacion}</span>
+                        </td>
+                      </tr>
+                   )) : (
+                      <tr><td colSpan="9" className="px-6 py-12 text-center text-slate-500 font-sans text-sm">No se encontraron registros en el archivo AVRO que coincidan con la búsqueda.</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+
+             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+               <div className="text-xs text-slate-500 font-mono flex items-center">
+                 <ShieldCheck size={14} className="mr-1 text-emerald-500"/> Validado contra esquema {selectedSchemaVersion}
+               </div>
+               <div className="flex space-x-3">
+                 <button onClick={handleDownloadAvro} className="px-6 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-lg transition-all hover:shadow-sm flex items-center">
+                   <Download size={16} className="mr-2 text-slate-500"/> Descargar Archivo .AVRO
+                 </button>
+                 <button onClick={() => setShowAvroPreview(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-lg transition-all hover:shadow-md">
+                   Cerrar Vista
+                 </button>
+               </div>
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE LINAJE DE DATOS */}
       {lineageModalItem && (
         <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
             
-            {/* Header del Modal */}
             <div className="bg-[#0b1120] text-white p-6 flex justify-between items-center shrink-0">
               <div>
                 <div className="flex items-center space-x-3 mb-1">
@@ -2275,14 +2272,12 @@ const App = () => {
               </button>
             </div>
             
-            {/* Info Bar y Buscador */}
             <div className="bg-slate-50 border-b border-slate-200 p-6 flex flex-col md:flex-row gap-6 md:items-center shadow-inner shrink-0">
                <div className="flex flex-col">
                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Período Fiscal</span>
                  <span className="text-slate-800 font-bold text-sm bg-white px-3 py-1 rounded-lg border border-slate-200">{lineageModalItem.label}</span>
                </div>
                
-               {/* Nuevo Buscador Global End-To-End */}
                <div className="flex-1 min-w-[250px] w-full relative">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Rastreador de Datos (Filtro Global)</span>
                   <div className="relative">
@@ -2305,7 +2300,6 @@ const App = () => {
                </div>
             </div>
 
-            {/* Aviso de filtro activo */}
             {lineageSearchQuery && (
               <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2 flex items-center justify-center text-xs font-bold text-indigo-800 shrink-0">
                 <Filter size={14} className="mr-2 text-indigo-500" /> Mostrando la transformación de datos para la búsqueda: "{lineageSearchQuery}"
@@ -2314,243 +2308,132 @@ const App = () => {
 
             {/* Contenido Scrolleable con Acordeones de Grillas */}
             <div className="p-8 overflow-y-auto flex-1 bg-white custom-scrollbar space-y-8">
-               
                {[
                  { 
-                   title: '1. Origen y Extracción de Datos', 
-                   type: 'Extracción / Ingesta', 
-                   icon: Database, 
-                   color: 'text-blue-600 bg-blue-100',
-                   desc: 'Conexión inicial a la fuente corporativa y creación del espejo de datos en el entorno seguro MURIC.',
+                   title: '1. Origen y Extracción de Datos', type: 'Ingesta', icon: Database, color: 'text-blue-600 bg-blue-100', 
+                   status: 'completed', hasSearch: true,
+                   desc: 'Conexión a fuente corporativa y copia en caché seguro.',
                    antes: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center"><Database size={10} className="mr-1.5"/> Fuente: PRD_CARTERA_VAL (SQL SERVER)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2">TIPO_DOC</th><th className="p-2">NUM_DOC</th><th className="p-2">NOMBRE_CLI</th><th className="p-2 text-right">SALDO_CAP</th><th className="p-2 text-center">FEC_DESEM</th><th className="p-2 text-center">DIAS_MORA</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2 font-bold text-slate-800">{r.obl}</td>
-                                 <td className="p-2">{r.tipoDocOrig}</td>
-                                 <td className="p-2 font-bold">{r.doc}</td>
-                                 <td className="p-2 font-sans font-medium truncate max-w-[120px]">{r.nombre}</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}</td>
-                                 <td className="p-2 text-center">{r.fecErr}</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden"><thead className="bg-slate-50 text-slate-500 border-b border-slate-200"><tr><th className="p-2">TIPO_DOC</th><th className="p-2">NUM_DOC</th><th className="p-2 text-right">SALDO_CAP</th><th className="p-2 text-center">FEC_DESEM</th></tr></thead><tbody className="divide-y divide-slate-100 text-slate-600">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}><td className="p-2">{r.tipoDocOrig}</td><td className="p-2 font-bold">{r.doc}</td><td className="p-2 text-right">{r.cap.toLocaleString()}</td><td className="p-2 text-center">{r.fecErr}</td></tr>))}
+                       </tbody></table>
                      </div>
                    ),
                    despues: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><Layers size={10} className="mr-1.5"/> Caché: MEM_SFC_MURIC (Ingesta)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden">
-                           <thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200">
-                             <tr><th className="p-2">idObligacion</th><th className="p-2">tipoId</th><th className="p-2">identificacion</th><th className="p-2">nombreCompleto</th><th className="p-2 text-right">capital</th><th className="p-2 text-center">fechaDesembolso</th><th className="p-2 text-center">diasMora</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}>
-                                 <td className="p-2 font-bold">"{r.obl}"</td>
-                                 <td className="p-2">"{r.tipoDoc}"</td>
-                                 <td className="p-2 font-bold">"{r.doc}"</td>
-                                 <td className="p-2 font-sans font-medium truncate max-w-[120px]">"{r.nombre}"</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}.0</td>
-                                 <td className="p-2 text-center">"{r.fecErr}"</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden"><thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200"><tr><th className="p-2">tipoDocumento</th><th className="p-2">numeroDocumento</th><th className="p-2 text-right">saldoCapital</th><th className="p-2 text-center">fechaDesembolso</th></tr></thead><tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}><td className="p-2">{r.tipoDoc}</td><td className="p-2 font-bold">"{r.doc}"</td><td className="p-2 text-right">{r.cap.toLocaleString()}.0</td><td className="p-2 text-center">"{r.fecErr}"</td></tr>))}
+                       </tbody></table>
                      </div>
                    )
                  },
                  { 
-                   title: '2. Motor de Validaciones y Calidad', 
-                   type: 'Control Regulatorio', 
-                   icon: Filter, 
-                   color: 'text-indigo-600 bg-indigo-100',
-                   desc: 'Ejecución de reglas de calidad. Identificación de nulos, formatos prohibidos y aplicación de saneamiento automático.',
+                   title: '2. Motor de Validaciones y Calidad', type: 'Control Regulatorio', icon: Filter, color: 'text-indigo-600 bg-indigo-100', 
+                   status: lineageModalItem.estadoDatos === 'Aprobada' ? 'completed' : 'pending', hasSearch: true,
+                   desc: lineageModalItem.estadoDatos === 'Aprobada' ? 'Ejecución de reglas de calidad. Identificación de nulos e inconsistencias operativas.' : 'Etapa Inactiva. El lote aún se encuentra en revisión de calidad.',
                    antes: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center"><AlertTriangle size={10} className="mr-1.5"/> Registros a Evaluar (Errores resaltados)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">TIPO_ID</th><th className="p-2 text-center">CALIF</th><th className="p-2 text-center">FECHA_DESEM</th><th className="p-2 text-center">Hallazgo Principal</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className={`p-2 text-center ${r.error && r.tipoDocOrig !== r.tipoDoc ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.tipoDocOrig === 'NULL' ? 'NULL' : r.tipoDocOrig}</td>
-                                 <td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.califErr}</td>
-                                 <td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.fecErr}</td>
-                                 <td className="p-2 text-center">{r.error ? <span className="text-rose-700 bg-rose-100 px-2 py-0.5 rounded font-bold shadow-sm">{r.error}</span> : <span className="text-slate-400">Sin anomalías</span>}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden"><thead className="bg-slate-50 text-slate-700 border-b border-slate-200"><tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">CALIF</th><th className="p-2 text-center">FECHA_DESEM</th><th className="p-2 text-center">Hallazgo</th></tr></thead><tbody className="divide-y divide-slate-100 text-slate-600">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}><td className="p-2 font-bold">{r.obl}</td><td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.califErr}</td><td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'bg-rose-100 text-rose-700 font-bold' : ''}`}>{r.fecErr}</td><td className="p-2 text-center">{r.error ? <span className="text-rose-700 bg-rose-100 px-2 py-0.5 rounded font-bold shadow-sm">{r.error}</span> : <span className="text-slate-400">Sin anomalías</span>}</td></tr>))}
+                       </tbody></table>
                      </div>
                    ),
                    despues: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-indigo-600 uppercase flex items-center"><CheckCircle2 size={10} className="mr-1.5"/> Registros Saneados (Aprobados)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-indigo-200 rounded-lg overflow-hidden">
-                           <thead className="bg-indigo-50 text-indigo-700 border-b border-indigo-200">
-                             <tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">tipoId</th><th className="p-2 text-center">calificacion</th><th className="p-2 text-center">fechaDesembolso</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-indigo-100 text-indigo-900 bg-indigo-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-indigo-100/30' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className={`p-2 text-center ${r.error && r.tipoDocOrig !== r.tipoDoc ? 'text-emerald-600 font-bold' : ''}`}>"{r.tipoDoc}"</td>
-                                 <td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'text-emerald-600 font-bold' : ''}`}>"{r.calif}"</td>
-                                 <td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'text-emerald-600 font-bold' : ''}`}>"{r.fec}"</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-indigo-200 rounded-lg overflow-hidden"><thead className="bg-indigo-50 text-indigo-700 border-b border-indigo-200"><tr><th className="p-2">ID_OBL</th><th className="p-2 text-center">tipoId</th><th className="p-2 text-center">fechaDesembolso</th><th className="p-2 text-center">calificacion</th></tr></thead><tbody className="divide-y divide-indigo-100 text-indigo-900 bg-indigo-50/20">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-indigo-100/30' : ''}><td className="p-2 font-bold">{r.obl}</td><td className={`p-2 text-center ${r.error && r.tipoDocOrig !== r.tipoDoc ? 'text-emerald-600 font-bold' : ''}`}>"{r.tipoDoc}"</td><td className={`p-2 text-center ${r.error && r.fecErr !== r.fec ? 'text-emerald-600 font-bold' : ''}`}>"{r.fec}"</td><td className={`p-2 text-center ${r.error && r.califErr !== r.calif ? 'text-emerald-600 font-bold' : ''}`}>"{r.calif}"</td></tr>))}
+                       </tbody></table>
                      </div>
                    )
                  },
                  { 
-                   title: '3. Consolidación del Lote Analítico', 
-                   type: 'Agrupación', 
-                   icon: Layers, 
-                   color: 'text-emerald-600 bg-emerald-100',
-                   desc: 'Unificación de conceptos financieros de la misma obligación. Múltiples registros transaccionales se agrupan en uno solo para el reporte final.',
+                   title: '3. Consolidación del Lote Analítico', type: 'Agrupación', icon: Layers, color: 'text-emerald-600 bg-emerald-100', 
+                   status: lineageModalItem.estadoDatos === 'Aprobada' ? 'completed' : 'pending', hasSearch: true,
+                   desc: lineageModalItem.estadoDatos === 'Aprobada' ? 'Unificación de conceptos financieros. Transformación de transacciones a saldo reporte.' : 'Etapa Inactiva. Requiere aprobación previa de calidad.',
                    antes: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Registros Dispersos por Operación</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">LLAVE (DOC+OBL)</th><th className="p-2">CONCEPTO_ORIGEN</th><th className="p-2 text-center">MONEDA</th><th className="p-2 text-right">VALOR_ORIGEN</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <React.Fragment key={i}>
-                                 <tr><td className="p-2 font-bold text-slate-800" rowSpan={3}>{r.doc} - {r.obl}</td><td className="p-2 text-blue-600">Capital</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.cap.toLocaleString()}</td></tr>
-                                 <tr className="border-l-2 border-slate-200"><td className="p-2 text-blue-600">Interes</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.int.toLocaleString()}</td></tr>
-                                 <tr className="border-l-2 border-slate-200 border-b-2 border-b-slate-300 bg-slate-50/50"><td className="p-2 text-blue-600">Provision</td><td className="p-2 text-center">{r.moneda}</td><td className="p-2 text-right">{r.prov.toLocaleString()}</td></tr>
-                               </React.Fragment>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden"><thead className="bg-slate-50 text-slate-500 border-b border-slate-200"><tr><th className="p-2">LLAVE_CRUCE</th><th className="p-2">CONCEPTO</th><th className="p-2 text-right">VALOR</th></tr></thead><tbody className="divide-y divide-slate-100 text-slate-600">
+                           {filteredLineageRecords.map((r, i) => (<React.Fragment key={i}><tr><td className="p-2 font-bold text-slate-800" rowSpan={3}>{r.obl}</td><td className="p-2">Saldo_Capital</td><td className="p-2 text-right">{r.cap.toLocaleString()}</td></tr><tr className="border-l-2 border-slate-200"><td className="p-2">Saldo_Interes</td><td className="p-2 text-right">{r.int.toLocaleString()}</td></tr><tr className="border-l-2 border-slate-200 border-b-2 border-b-slate-300 bg-slate-50/50"><td className="p-2">Provision</td><td className="p-2 text-right">{r.prov.toLocaleString()}</td></tr></React.Fragment>))}
+                       </tbody></table>
                      </div>
                    ),
                    despues: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-emerald-600 uppercase">Registro Único Consolidado</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden">
-                           <thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200">
-                             <tr><th className="p-2">idObligacion</th><th className="p-2 text-right">totalCapital</th><th className="p-2 text-right">totalInteres</th><th className="p-2 text-right">totalProvision</th><th className="p-2 text-right">vlrTotalReporte</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}>
-                                 <td className="p-2 font-bold">{r.obl}</td>
-                                 <td className="p-2 text-right">{r.cap.toLocaleString()}</td>
-                                 <td className="p-2 text-right">{r.int.toLocaleString()}</td>
-                                 <td className="p-2 text-right">{r.prov.toLocaleString()}</td>
-                                 <td className="p-2 text-right font-black text-emerald-700 bg-emerald-100/50">{(r.cap + r.int).toLocaleString()}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-emerald-200 rounded-lg overflow-hidden"><thead className="bg-emerald-50 text-emerald-700 border-b border-emerald-200"><tr><th className="p-2">idObligacion</th><th className="p-2 text-right">totalCapital</th><th className="p-2 text-right">totalInteres</th><th className="p-2 text-right">vlrTotalReporte</th></tr></thead><tbody className="divide-y divide-emerald-50 text-emerald-800 bg-emerald-50/20">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-emerald-100/30' : ''}><td className="p-2 font-bold">{r.obl}</td><td className="p-2 text-right">{r.cap.toLocaleString()}</td><td className="p-2 text-right">{r.int.toLocaleString()}</td><td className="p-2 text-right font-black text-emerald-700 bg-emerald-100/50">{(r.cap + r.int).toLocaleString()}</td></tr>))}
+                       </tbody></table>
                      </div>
                    )
                  },
                  { 
-                   title: '4. Aplicación del Esquema Normativo', 
-                   type: 'Mapeo AVRO', 
-                   icon: FileJson, 
-                   color: 'text-amber-600 bg-amber-100',
-                   desc: 'Traducción final de los datos corporativos al formato técnico exigido por el ente regulador (MURIC_CARTERA).',
+                   title: '4. Aplicación del Esquema Normativo', type: 'Mapeo AVRO', icon: FileJson, color: 'text-amber-600 bg-amber-100', 
+                   status: lineageModalItem.estadoAvro === 'Generado' || lineageModalItem.estadoTransmision === 'Transmitido' ? 'completed' : 'pending', hasSearch: true,
+                   desc: lineageModalItem.estadoAvro === 'Generado' || lineageModalItem.estadoTransmision === 'Transmitido' ? 'Traducción final al formato técnico exigido por el ente regulador (MURIC_CARTERA).' : 'Etapa Inactiva. Esquema normativo aún no aplicado al lote.',
                    antes: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Estructura Relacional Interna</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden">
-                           <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                             <tr><th className="p-2">id_obligacion</th><th className="p-2 text-right">saldo_cap_actual</th><th className="p-2 text-center">moneda_origen</th><th className="p-2 text-center">dias_mora</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-600 bg-white">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}>
-                                 <td className="p-2">{r.obl}</td>
-                                 <td className="p-2 text-right">{r.cap}</td>
-                                 <td className="p-2 text-center">{r.moneda === 'COP' ? 'Pesos' : 'Dolares'}</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-slate-200 rounded-lg overflow-hidden"><thead className="bg-slate-50 text-slate-500 border-b border-slate-200"><tr><th className="p-2">id_cliente_bco</th><th className="p-2">id_obligacion</th><th className="p-2 text-right">saldo_cap_actual</th><th className="p-2 text-center">moneda_origen</th></tr></thead><tbody className="divide-y divide-slate-100 text-slate-600">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-slate-50' : ''}><td className="p-2">{r.doc}</td><td className="p-2">{r.obl}</td><td className="p-2 text-right">{r.cap}</td><td className="p-2 text-center">{r.moneda === 'COP' ? 'Pesos' : 'Dolares'}</td></tr>))}
+                       </tbody></table>
                      </div>
                    ),
                    despues: (
                      <div className="space-y-3">
-                       <p className="text-[10px] font-bold text-amber-600 uppercase">Validación Esquema JSON (.avsc)</p>
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-left text-[10px] font-mono border border-amber-200 rounded-lg overflow-hidden">
-                           <thead className="bg-amber-50 text-amber-800 border-b border-amber-200">
-                             <tr><th className="p-2">idObligacion (string)</th><th className="p-2 text-right">saldoCapital (double)</th><th className="p-2 text-center">tipoMoneda (enum)</th><th className="p-2 text-center">diasMora (int)</th></tr>
-                           </thead>
-                           <tbody className="divide-y divide-amber-50 text-amber-900 bg-amber-50/20">
-                             {filteredLineageRecords.map((r, i) => (
-                               <tr key={i} className={i % 2 === 1 ? 'bg-amber-100/30' : ''}>
-                                 <td className="p-2 font-bold">"{r.obl}"</td>
-                                 <td className="p-2 text-right">{r.cap}.0</td>
-                                 <td className="p-2 text-center bg-amber-100 font-bold">"{r.moneda}"</td>
-                                 <td className="p-2 text-center">{r.mora}</td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
+                       <table className="w-full text-left text-[10px] font-mono border border-amber-200 rounded-lg overflow-hidden"><thead className="bg-amber-50 text-amber-800 border-b border-amber-200"><tr><th className="p-2">idCliente (string)</th><th className="p-2">idObligacion (string)</th><th className="p-2 text-right">saldoCapital (double)</th><th className="p-2 text-center">tipoMoneda (enum)</th></tr></thead><tbody className="divide-y divide-amber-50 text-amber-900 bg-amber-50/20">
+                           {filteredLineageRecords.map((r, i) => (<tr key={i} className={i % 2 === 1 ? 'bg-amber-100/30' : ''}><td className="p-2 font-bold">"{r.doc}"</td><td className="p-2 font-bold">"{r.obl}"</td><td className="p-2 text-right">{r.cap}.0</td><td className="p-2 text-center bg-amber-100 font-bold">"{r.moneda}"</td></tr>))}
+                       </tbody></table>
                      </div>
                    )
                  },
                  { 
-                   title: '5. Serialización AVRO y Firma Digital', type: 'Seguridad', icon: ShieldCheck, color: 'text-purple-600 bg-purple-100', desc: 'Conversión binaria y aseguramiento criptográfico Hash SHA-256.',
+                   title: '5. Serialización AVRO y Firma Digital', type: 'Seguridad', icon: ShieldCheck, color: 'text-purple-600 bg-purple-100', 
+                   status: lineageModalItem.estadoAvro === 'Generado' || lineageModalItem.estadoTransmision === 'Transmitido' ? 'completed' : 'pending', hasSearch: false,
+                   desc: lineageModalItem.estadoAvro === 'Generado' || lineageModalItem.estadoTransmision === 'Transmitido' ? 'Conversión binaria y aseguramiento criptográfico Hash SHA-256.' : 'Etapa Inactiva. Lote no serializado.',
                    antes: (<div className="p-4 bg-slate-50 rounded-xl font-mono text-[10px] text-slate-600 border border-slate-200 leading-relaxed"><span className="font-bold text-slate-700">Formato:</span> JSON Intermedio Legible<br/><span className="font-bold text-slate-700">Registros Listos:</span> {lineageModalItem.records.toLocaleString()}<br/><span className="font-bold text-amber-600 mt-2 block">Estado Seguridad: Vulnerable (Sin protección criptográfica)</span></div>),
                    despues: (<div className="p-4 bg-[#0b1120] rounded-xl font-mono text-[10px] text-purple-200 leading-relaxed"><span className="font-bold text-purple-400">Bloque Serializado:</span> Obj\x01\x04\x14avro.codec...<br/><span className="font-bold text-purple-400">Peso Optimizado:</span> ~250 MB<br/><span className="font-bold text-emerald-400 mt-2 block">✔ Hash: 8A4B...9F21 (Firmado PGP RSA-2048)</span></div>)
                  },
-                   { 
-                   title: '6. Transmisión Oficial a SFC', type: 'Envío', icon: Activity, color: 'text-blue-600 bg-blue-100', desc: 'Entrega final y certificación en servidores SFC.',
+                 { 
+                   title: '6. Transmisión Oficial a SFC', type: 'Envío', icon: Activity, color: 'text-blue-600 bg-blue-100', 
+                   status: lineageModalItem.estadoTransmision === 'Transmitido' ? 'completed' : 'pending', hasSearch: false,
+                   desc: lineageModalItem.estadoTransmision === 'Transmitido' ? 'Entrega final y certificación en servidores SFC.' : 'Etapa Inactiva. El paquete no ha sido transmitido a la autoridad regulatoria.',
                    antes: (<div className="p-4 bg-slate-50 font-mono text-[10px] border rounded-xl border-slate-200 text-slate-600 leading-relaxed">Archivo empaquetado residiendo en servidor local interno.<br/><span className="font-bold text-amber-600 mt-1 block">Estado: Pendiente de autorización y envío.</span></div>),
                    despues: (<div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl font-mono text-[10px] text-emerald-800 font-bold">Destino: api.superfinanciera.gov | 200 OK | ID: RCV-2026-A101</div>)
                  }
                ].map((step, idx, arr) => (
-                 <div key={idx} className="flex items-start relative mb-6">
+                 <div key={idx} className={`flex items-start relative mb-6 transition-all duration-500 animate-in fade-in slide-in-from-bottom-4 ${step.status === 'pending' ? 'opacity-60 grayscale' : ''}`} style={{animationDelay: `${idx * 100}ms`}}>
                    {idx !== arr.length - 1 && (<div className="absolute left-[23px] top-[46px] bottom-[-32px] w-[2px] z-0 bg-slate-200"></div>)}
-                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 z-10 border-4 border-white shadow-sm ${step.color}`}><step.icon size={20} /></div>
-                   <div className="ml-6 flex-1 bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                     <div onClick={() => setExpandedLineageStep(expandedLineageStep === idx ? null : idx)} className="flex justify-between items-start cursor-pointer group">
-                       <div><h4 className="text-base font-bold text-slate-800">{step.title} <span className="ml-2 text-[9px] bg-slate-100 px-2 py-0.5 rounded uppercase">{step.type}</span></h4><p className="text-xs text-slate-500 mt-1">{step.desc}</p></div>
-                       <ChevronDown size={20} className={`text-slate-400 group-hover:text-indigo-500 transition-transform ${expandedLineageStep === idx ? 'rotate-180' : ''}`} />
+                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 z-10 border-4 border-white shadow-sm ${step.status === 'completed' ? step.color : 'bg-slate-200 text-slate-500'}`}><step.icon size={20} /></div>
+                   <div className={`ml-6 flex-1 bg-white p-5 rounded-xl border border-slate-200 shadow-sm transition-all ${step.status === 'completed' ? 'hover:shadow-md' : ''}`}>
+                     <div onClick={() => step.status === 'completed' && setExpandedLineageStep(expandedLineageStep === idx ? null : idx)} className={`flex justify-between items-start ${step.status === 'completed' ? 'cursor-pointer group' : 'cursor-not-allowed'}`}>
+                       <div>
+                         <h4 className={`text-base font-bold transition-colors ${step.status === 'completed' ? 'text-slate-800 group-hover:text-indigo-600' : 'text-slate-600'}`}>{step.title} <span className="ml-2 text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase">{step.type}</span></h4>
+                         <p className="text-xs text-slate-500 mt-1">{step.desc}</p>
+                       </div>
+                       {step.status === 'completed' && <ChevronDown size={20} className={`text-slate-400 group-hover:text-indigo-500 transition-transform ${expandedLineageStep === idx ? 'rotate-180' : ''}`} />}
                      </div>
-                     {expandedLineageStep === idx && (
-                       <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 lg:grid-cols-2 gap-6 relative animate-in fade-in">
-                           <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center shadow-sm text-slate-400 z-20"><ArrowRight size={14} /></div>
-                           <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-slate-200 text-slate-700 text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Estado Entrada</span>{step.antes}</div>
-                           <div className="bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Resultado Final</span>{step.despues}</div>
+                     {expandedLineageStep === idx && step.status === 'completed' && (
+                       <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
+                           
+                           {/* Buscador Contextual Interno por Etapa */}
+                           {step.hasSearch && (
+                             <div className="mb-6 bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 flex items-center">
+                               <Search size={16} className="text-indigo-500 mr-3 shrink-0" />
+                               <input
+                                 type="text"
+                                 placeholder="Rastrear dato específico en esta etapa (Obligación, Documento, Nombre)..."
+                                 value={lineageSearchQuery}
+                                 onChange={(e) => setLineageSearchQuery(e.target.value)}
+                                 className="flex-1 bg-white border border-indigo-200 rounded-md px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                               />
+                               {lineageSearchQuery && <span className="ml-3 text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-1 rounded-md shrink-0">Filtro Activo</span>}
+                             </div>
+                           )}
+
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
+                             <div className="hidden lg:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center shadow-sm text-slate-400 z-20"><ArrowRight size={14} /></div>
+                             <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-slate-200 text-slate-700 text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Estado Entrada</span>{step.antes}</div>
+                             <div className="bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 pt-6 relative"><span className="absolute -top-2.5 left-4 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-sm">Resultado Final</span>{step.despues}</div>
+                           </div>
                        </div>
                      )}
                    </div>
