@@ -242,20 +242,22 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [detailFilter, setDetailFilter] = useState('');
   
-  // Modales
+  // Modales Principales
   const [detailModalItem, setDetailModalItem] = useState(null);
   const [modalReviewTab, setModalReviewTab] = useState('resumen');
   const [modalCurrentPage, setModalCurrentPage] = useState(1);
   const [modalDetailFilter, setModalDetailFilter] = useState('');
+  
   const [evidenceModalItem, setEvidenceModalItem] = useState(null);
   const [showAvroPreview, setShowAvroPreview] = useState(false);
   const [avroFilter, setAvroFilter] = useState('');
   const [avroCurrentPage, setAvroCurrentPage] = useState(1);
+
+  // Linaje Dinámico y Acordeones
   const [lineageModalItem, setLineageModalItem] = useState(null);
   const [expandedLineageStep, setExpandedLineageStep] = useState(0);
   const [lineageSearchQuery, setLineageSearchQuery] = useState('');
   
-  // Transmision
   const [channel, setChannel] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [isAvroGenerated, setIsAvroGenerated] = useState(false);
@@ -354,6 +356,71 @@ const App = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.setAttribute("download", `Auditoria_Linaje_Trazabilidad_${lineageModalItem?.id}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+  };
+
+  const handleExportLineageExcel = () => {
+    let tableStr = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"></head><body>`;
+    tableStr += `<h2>REPORTE DE TRAZABILIDAD Y LINAJE DE DATOS END-TO-END - MURIC</h2>`;
+    tableStr += `<p><b>Lote Procesado:</b> ${lineageModalItem?.id}</p>`;
+    tableStr += `<p><b>Periodo:</b> ${lineageModalItem?.label}</p>`;
+    tableStr += `<p><b>Filtro Aplicado:</b> ${lineageSearchQuery || 'Ninguno (Muestra General)'}</p>`;
+    tableStr += `<p><b>Fecha Generacion:</b> ${new Date().toLocaleString()}</p><br/>`;
+    tableStr += `<table border="1"><tr style="background-color:#0f172a; color:white;"><th>ID Obligacion</th><th>Documento</th><th>Nombre Cliente</th><th>Etapa Proceso</th><th>Campo Revisado</th><th>Valor Original</th><th>Valor Final</th><th>Estado Regla</th><th>Observacion</th></tr>`;
+    filteredLineageRecords.forEach(r => {
+        tableStr += `<tr><td>${r.obl}</td><td>${r.doc}</td><td>${r.nombre}</td><td>1. Extraccion</td><td>TIPO_DOC</td><td>${r.tipoDocOrig}</td><td>${r.tipoDoc}</td><td>OK</td><td>Ingesta a Cache MURIC</td></tr>`;
+        tableStr += `<tr><td>${r.obl}</td><td>${r.doc}</td><td>${r.nombre}</td><td>2. Validacion</td><td>FECHA_DESEMBOLSO</td><td>${r.fecErr}</td><td>${r.fec}</td><td>${r.error ? 'SANEADO' : 'OK'}</td><td>${r.error || 'Cumple formato ISO'}</td></tr>`;
+        tableStr += `<tr><td>${r.obl}</td><td>${r.doc}</td><td>${r.nombre}</td><td>3. Consolidacion</td><td>SALDO_TOTAL</td><td>Disperso</td><td>${r.cap + r.int}</td><td>OK</td><td>Agrupacion de llaves maestras</td></tr>`;
+        tableStr += `<tr><td>${r.obl}</td><td>${r.doc}</td><td>${r.nombre}</td><td>4. Esquema_AVRO</td><td>ESTRUCTURA</td><td>Tabla_Relacional</td><td>Esquema_JSON</td><td>OK</td><td>Mapeo contra esquema MURIC_CARTERA</td></tr>`;
+    });
+    tableStr += `</table></body></html>`;
+    const blob = new Blob([tableStr], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Auditoria_Linaje_Trazabilidad_${lineageModalItem?.id}.xls`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+  };
+
+  const handleExportLineagePDF = async () => {
+    try {
+      if (!window.jspdf) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+        });
+      }
+      if (!window.jspdf.autoTable) {
+         await new Promise((resolve, reject) => {
+            const script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+         });
+      }
+      
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('landscape');
+      doc.setFontSize(14);
+      doc.text("Reporte de Trazabilidad y Linaje de Datos End-to-End - MURIC", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Lote Procesado: ${lineageModalItem?.id} | Periodo: ${lineageModalItem?.label}`, 14, 22);
+      doc.text(`Filtro Aplicado: ${lineageSearchQuery || 'Ninguno'} | Fecha: ${new Date().toLocaleString()}`, 14, 28);
+      
+      const tableData = [];
+      filteredLineageRecords.forEach(r => {
+        tableData.push([r.obl, r.doc, r.nombre, "1. Extraccion", "TIPO_DOC", r.tipoDocOrig, r.tipoDoc, "OK", "Ingesta a Cache MURIC"]);
+        tableData.push([r.obl, r.doc, r.nombre, "2. Validacion", "FECHA_DESEMBOLSO", r.fecErr, r.fec, r.error ? 'SANEADO' : 'OK', r.error || 'Cumple formato ISO']);
+        tableData.push([r.obl, r.doc, r.nombre, "3. Consolidacion", "SALDO_TOTAL", "Disperso", (r.cap + r.int).toString(), "OK", "Agrupacion de llaves maestras"]);
+        tableData.push([r.obl, r.doc, r.nombre, "4. Esquema_AVRO", "ESTRUCTURA", "Tabla_Relacional", "Esquema_JSON", "OK", "Mapeo contra esquema MURIC_CARTERA"]);
+      });
+
+      doc.autoTable({
+        startY: 32,
+        head: [['ID Obligacion', 'Documento', 'Nombre Cliente', 'Etapa Proceso', 'Campo Revisado', 'Valor Original', 'Valor Final', 'Estado', 'Observacion']],
+        body: tableData,
+        theme: 'grid',
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [15, 23, 42] }
+      });
+
+      doc.save(`Auditoria_Linaje_Trazabilidad_${lineageModalItem?.id}.pdf`);
+    } catch(e) {
+      console.error("Error generando PDF de linaje:", e);
+      alert("Hubo un error al generar el PDF de auditoría.");
+    }
   };
 
   const steps = ["Esquema", "Fuentes", "Revisión", "Canal", "Preparación", "Transmisión", "Resultado"];
@@ -520,7 +587,7 @@ const App = () => {
       const selloY = Math.max(193, startY + 5);
       doc.setDrawColor(...primaryColor); doc.setLineWidth(0.5); doc.setFillColor(245, 247, 250); doc.roundedRect(15, selloY, 180, 85, 2, 2, 'FD');
       doc.setFillColor(...primaryColor); doc.roundedRect(15, selloY, 180, 9, 2, 2, 'F'); doc.rect(15, selloY + 4, 180, 5, 'F'); 
-      doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text("SELLO CRIPTOGRÁFICO - INTEGRIDAD Y NO REPUDIO", 105, selloY + 6, null, null, "center");
+      doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text("SELLO CRIPTOGRÁFICO AVANZADO - INTEGRIDAD Y NO REPUDIO", 105, selloY + 6, null, null, "center");
 
       doc.setTextColor(50, 50, 50); doc.setFontSize(8); let sy = selloY + 16;
       doc.setFont("helvetica", "bold"); doc.text("Hash del Documento (SHA-256):", 20, sy); sy += 4; doc.setFont("courier", "normal"); doc.text("C9F2A1F4B13E5A7C7D4E8F6D1A8A9F43B7D0E5C4A2F6A3B9D7E1C2F3A4B5D6E7", 20, sy);
@@ -918,7 +985,7 @@ const App = () => {
         <div className="bg-gradient-to-r from-[#0b1120] to-blue-900 rounded-2xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 transform transition-all hover:shadow-2xl">
           <div>
             <img src="https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png" alt="TÓTAL REPORT Logo" className="h-12 mb-3 object-contain" />
-            <p className="text-blue-200">Gestión y Transmisión de Reporte MURIC.</p>
+            <p className="text-blue-200">Gestión y Transmisión de Reporte MURIC a la Superintendencia Financiera.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <button onClick={() => setStep(0)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-blue-500/30 hover:-translate-y-1 transition-all flex items-center justify-center shrink-0">
@@ -1893,7 +1960,7 @@ const App = () => {
           <img src="https://totalreport.com.co/wp-content/uploads/2024/11/totalreport1300.png" alt="TÓTAL REPORT Logo" className="h-6 object-contain mr-2" />
           <div className="hidden md:block">
             <h1 className="font-bold text-white leading-tight">Módulo de Transmisión MURIC</h1>
-            <p className="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Ecosistema de Cumplimiento Regulatorio</p>
+            <p className="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Plataforma Empresarial</p>
           </div>
         </div>
         <div className="flex items-center space-x-3 text-sm">
@@ -1995,173 +2062,13 @@ const App = () => {
         </div>
       )}
 
-      {/* MODAL DE DETALLE Y REVISIÓN DE CORTES */}
-      {detailModalItem && (
-        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-white border-b border-slate-200 p-5 flex justify-between items-center shrink-0">
-              <div className="flex items-center">
-                <ListFilter size={20} className="mr-2 text-blue-600"/> 
-                <h3 className="font-bold text-slate-800 text-lg mr-4">Revisión de Corte Histórico</h3>
-                <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-md text-xs font-bold border border-slate-200">{detailModalItem.label}</span>
-              </div>
-              <button onClick={() => setDetailModalItem(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
-            </div>
-
-            <div className="flex bg-white border-b border-slate-200 px-4 overflow-x-auto shrink-0 pt-2">
-               <button onClick={()=>{setModalReviewTab('resumen'); setModalCurrentPage(1); setModalDetailFilter('');}} className={`px-4 py-3 text-sm font-bold flex items-center whitespace-nowrap transition-colors border-b-2 ${modalReviewTab==='resumen'?'border-blue-600 text-blue-700':'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                 <PieChart size={16} className="mr-2"/> Resumen por Cartera
-               </button>
-               <button onClick={()=>{setModalReviewTab('top5'); setModalCurrentPage(1); setModalDetailFilter('');}} className={`px-4 py-3 text-sm font-bold flex items-center whitespace-nowrap transition-colors border-b-2 ${modalReviewTab==='top5'?'border-blue-600 text-blue-700':'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                 <Users size={16} className="mr-2"/> Top 5 Mayor Riesgo
-               </button>
-               <button onClick={()=>setModalReviewTab('detalle')} className={`px-4 py-3 text-sm font-bold flex items-center whitespace-nowrap transition-colors border-b-2 ${modalReviewTab==='detalle'?'border-blue-600 text-blue-700':'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                 <ListFilter size={16} className="mr-2"/> Detalle (Paginado)
-               </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 p-6 bg-slate-50/50">
-              {modalReviewTab === 'resumen' && (
-                <div key="modal-resumen" className="animate-in fade-in zoom-in-[0.98] duration-500 overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
-                  <table className="w-full text-sm text-left whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-100 tracking-wider">
-                      <tr><th className="px-6 py-4 font-bold">Tipo de Crédito</th><th className="px-6 py-4 font-bold text-right">Cantidad de Oblig.</th><th className="px-6 py-4 font-bold text-center">% del Total</th><th className="px-6 py-4 font-bold text-right">Saldo de Capital Total</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
-                      <tr className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 font-bold text-slate-700">Comercial</td><td className="px-6 py-4 text-right font-medium text-slate-600">{activeStats.comercial.count.toLocaleString()}</td><td className="px-6 py-4 text-center"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-bold border border-blue-100">18%</span></td><td className="px-6 py-4 text-right font-mono font-bold text-slate-800">$ {activeStats.comercial.amount} Billones</td></tr>
-                      <tr className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 font-bold text-slate-700">Consumo</td><td className="px-6 py-4 text-right font-medium text-slate-600">{activeStats.consumo.count.toLocaleString()}</td><td className="px-6 py-4 text-center"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-bold border border-blue-100">60%</span></td><td className="px-6 py-4 text-right font-mono font-bold text-slate-800">$ {activeStats.consumo.amount} Billones</td></tr>
-                      <tr className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 font-bold text-slate-700">Hipotecario</td><td className="px-6 py-4 text-right font-medium text-slate-600">{activeStats.hipotecario.count.toLocaleString()}</td><td className="px-6 py-4 text-center"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-bold border border-blue-100">14%</span></td><td className="px-6 py-4 text-right font-mono font-bold text-slate-800">$ {activeStats.hipotecario.amount} Billones</td></tr>
-                      <tr className="bg-slate-50/80 border-t-2 border-slate-200">
-                        <td className="px-6 py-5 font-black text-slate-800 uppercase text-xs">Total Datos Lote {detailModalItem.period}</td>
-                        <td className="px-6 py-5 text-right font-black text-slate-800">{detailModalItem.records.toLocaleString()}</td>
-                        <td className="px-6 py-5 text-center"><span className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm">100%</span></td>
-                        <td className="px-6 py-5 text-right font-mono font-black text-blue-700 text-base">$ {activeStats.totalAmount} Billones</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {modalReviewTab === 'top5' && (
-                <div key="modal-top5" className="animate-in fade-in zoom-in-[0.98] duration-500 overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
-                  <table className="w-full text-sm text-left whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-100 tracking-wider">
-                      <tr><th className="px-6 py-4 font-bold">Rank</th><th className="px-6 py-4 font-bold">ID Cliente / NIT</th><th className="px-6 py-4 font-bold">ID Obligación</th><th className="px-6 py-4 font-bold text-right">Saldo Capital</th><th className="px-6 py-4 font-bold text-center">Calif.</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm font-medium">
-                      <tr className="hover:bg-red-50/50 transition-colors"><td className="px-6 py-4 text-slate-400 font-bold">1</td><td className="px-6 py-4 text-slate-800">NIT 890900608</td><td className="px-6 py-4 font-mono text-slate-600">OBL-C-001</td><td className="px-6 py-4 text-right font-mono font-bold text-red-600">$ 150,000,000,000</td><td className="px-6 py-4 text-center"><span className="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded font-bold text-xs shadow-sm">A</span></td></tr>
-                      <tr className="hover:bg-red-50/50 transition-colors"><td className="px-6 py-4 text-slate-400 font-bold">2</td><td className="px-6 py-4 text-slate-800">NIT 860001022</td><td className="px-6 py-4 font-mono text-slate-600">OBL-C-452</td><td className="px-6 py-4 text-right font-mono font-bold text-red-600">$ 120,500,000,000</td><td className="px-6 py-4 text-center"><span className="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded font-bold text-xs shadow-sm">A</span></td></tr>
-                      <tr className="hover:bg-amber-50/50 transition-colors"><td className="px-6 py-4 text-slate-400 font-bold">3</td><td className="px-6 py-4 text-slate-800">NIT 900504312</td><td className="px-6 py-4 font-mono text-slate-600">OBL-C-891</td><td className="px-6 py-4 text-right font-mono font-bold text-amber-600">$ 85,000,000,000</td><td className="px-6 py-4 text-center"><span className="bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold text-xs shadow-sm">B</span></td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {modalReviewTab === 'detalle' && (
-                <div key="modal-detalle" className="animate-in fade-in zoom-in-[0.98] duration-500 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                   <div className="bg-blue-50/50 px-6 py-4 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-center text-xs gap-3">
-                     <div className="flex items-center space-x-2 w-full sm:w-auto">
-                       <div className="relative w-full sm:w-64">
-                         <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                         <input type="text" placeholder="Buscar por ID Obligación..." value={modalDetailFilter} onChange={(e) => {setModalDetailFilter(e.target.value); setModalCurrentPage(1);}} className="w-full pl-8 pr-3 py-2 rounded-lg border border-blue-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium hover:shadow-sm transition-shadow"/>
-                       </div>
-                     </div>
-                     <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
-                       <span className="text-slate-600 font-medium">
-                         {MODAL_VIRTUAL_TOTAL > 0 ? (<>Mostrando <strong>{((modalCurrentPage - 1) * 10) + 1} a {Math.min(modalCurrentPage * 10, MODAL_VIRTUAL_TOTAL)}</strong> de <strong>{MODAL_VIRTUAL_TOTAL.toLocaleString()}</strong></>) : '0 resultados'}
-                       </span>
-                       <div className="flex items-center space-x-2">
-                         <button onClick={() => setModalCurrentPage(p => Math.max(1, p - 1))} disabled={modalCurrentPage === 1} className="px-2 py-1 border border-slate-300 rounded bg-white text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm disabled:shadow-none">Anterior</button>
-                         <span className="font-bold text-slate-700">Pág {modalCurrentPage.toLocaleString()} de {MODAL_TOTAL_PAGES.toLocaleString()}</span>
-                         <button onClick={() => setModalCurrentPage(p => Math.min(MODAL_TOTAL_PAGES, p + 1))} disabled={modalCurrentPage === MODAL_TOTAL_PAGES || MODAL_TOTAL_PAGES === 0} className="px-2 py-1 border border-slate-300 rounded bg-white text-blue-600 disabled:opacity-50 hover:bg-blue-50 transition-colors shadow-sm disabled:shadow-none">Siguiente</button>
-                       </div>
-                     </div>
-                   </div>
-                   
-                   <div className="overflow-x-auto">
-                     <table className="w-full text-sm text-left whitespace-nowrap">
-                      <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-100 tracking-wider">
-                        <tr><th className="px-6 py-3 font-bold"># ID_Interno</th><th className="px-6 py-3 font-bold">ID_Obligación</th><th className="px-6 py-3 font-bold">Tipo_Credito</th><th className="px-6 py-3 font-bold text-right">Saldo_Capital</th><th className="px-6 py-3 font-bold text-center">Calificación</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs font-mono">
-                        {modalCurrentDetails.length > 0 ? modalCurrentDetails.map((r, i) => (
-                            <tr key={i} className="hover:bg-slate-50 transition-colors animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: `${i * 30}ms` }}>
-                              <td className="px-6 py-3 text-slate-400">{r.idInterno}</td>
-                              <td className="px-6 py-3 text-slate-800 font-bold text-blue-700 bg-blue-50 px-2 rounded inline-block mt-1">{r.idObligacion}</td>
-                              <td className="px-6 py-3 text-slate-600">{r.tipo}</td>
-                              <td className="px-6 py-3 text-right text-slate-800">$ {r.saldo.toLocaleString()}</td>
-                              <td className="px-6 py-3 text-center"><span className={`${r.calificacion === 'A' ? 'text-emerald-600' : 'text-amber-600'} font-bold`}>{r.calificacion}</span></td>
-                            </tr>
-                          )) : (<tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500 font-sans text-sm">No hay registros que coincidan.</td></tr>)
-                        }
-                      </tbody>
-                    </table>
-                   </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-slate-200 bg-white flex justify-end shrink-0">
-              <button onClick={() => setDetailModalItem(null)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-lg transition-all hover:shadow-lg hover:-translate-y-0.5">Cerrar Detalle Analítico</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE EVIDENCIA */}
-      {evidenceModalItem && (
-        <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-[#0f172a] text-white p-5 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-bold flex items-center"><FileText size={18} className="mr-2 text-blue-400"/> Evidencia TÓTAL REPORT®</h3>
-                <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-widest">{evidenceModalItem.id}</p>
-              </div>
-              <button onClick={() => setEvidenceModalItem(null)} className="text-slate-400 hover:text-white p-1.5 rounded-lg transition-colors"><X size={24}/></button>
-            </div>
-            <div className="p-6 space-y-5 overflow-y-auto">
-              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm">
-                <div className="flex items-center"><CheckCircle2 size={24} className="text-emerald-600 mr-3"/> <div><p className="text-sm font-bold text-emerald-900">Transmisión Exitosa</p><p className="text-xs text-emerald-700">{evidenceModalItem.fechaTransmision}</p></div></div>
-                <div className="text-right text-xs"><p className="font-bold text-slate-500 uppercase">Respuesta Autoridad</p><p className="font-bold text-emerald-700">{evidenceModalItem.respuesta}</p></div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div><p className="text-[10px] font-bold text-slate-500 uppercase">Período</p><p className="font-bold text-slate-800">{evidenceModalItem.label}</p></div>
-                <div><p className="text-[10px] font-bold text-slate-500 uppercase">Total Registros</p><p className="font-bold text-slate-800">{evidenceModalItem.records.toLocaleString()}</p></div>
-                <div><p className="text-[10px] font-bold text-slate-500 uppercase">Canal de Salida</p><p className="font-bold text-slate-800">{evidenceModalItem.canal}</p></div>
-                <div><p className="text-[10px] font-bold text-slate-500 uppercase">Usuario Operador</p><p className="font-bold text-slate-800">{USUARIO_ACTUAL}</p></div>
-              </div>
-
-              <div>
-                <p className="text-xs font-bold text-slate-500 uppercase border-b border-slate-200 pb-2 mb-3">Archivos Transmitidos</p>
-                <div className="space-y-2">
-                  {evidenceModalItem.archivos.map((a, i) => (
-                    <div key={i} className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-xs shadow-sm hover:border-slate-200 transition-colors">
-                      <span className="font-mono font-bold text-slate-700">{a.nombre}</span>
-                      <span className="font-bold bg-white px-2 py-0.5 rounded shadow-sm text-slate-600">{a.peso}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end shrink-0">
-              <button 
-                onClick={() => handleDownloadPDF(evidenceModalItem)} 
-                disabled={downloaded === 'loading'}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-all hover:shadow-lg flex items-center shadow-md disabled:opacity-70 disabled:hover:shadow-none"
-              >
-                {downloaded === 'loading' ? <RefreshCw size={16} className="mr-2 animate-spin"/> : <Download size={16} className="mr-2"/>}
-                Descargar Evidencia Oficial (PDF)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* MODALES ADICIONALES (PREVISUALIZACION AVRO Y LINAJE END-TO-END) */}
+      
       {/* MODAL DE PREVISUALIZACION DE AVRO */}
       {showAvroPreview && (
         <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+             {/* Modal Header */}
              <div className="bg-white border-b border-slate-200 p-5 flex justify-between items-center shrink-0">
                <div className="flex items-center">
                  <FileJson size={20} className="mr-3 text-blue-600"/> 
@@ -2173,6 +2080,7 @@ const App = () => {
                <button onClick={() => setShowAvroPreview(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
              </div>
              
+             {/* Toolbar: Search & Pagination info */}
              <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center text-sm gap-4 shrink-0">
                <div className="relative w-full sm:w-80">
                  <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
@@ -2196,6 +2104,7 @@ const App = () => {
                </div>
              </div>
 
+             {/* Table */}
              <div className="overflow-y-auto flex-1 p-0 bg-white">
                <table className="w-full text-sm text-left whitespace-nowrap">
                  <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-200 sticky top-0 z-10 shadow-sm">
@@ -2235,6 +2144,7 @@ const App = () => {
                </table>
              </div>
 
+             {/* Footer */}
              <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
                <div className="text-xs text-slate-500 font-mono flex items-center">
                  <ShieldCheck size={14} className="mr-1 text-emerald-500"/> Validado contra esquema {selectedSchemaVersion}
@@ -2257,6 +2167,7 @@ const App = () => {
         <div className="fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in zoom-in-[0.98] duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
             
+            {/* Header del Modal */}
             <div className="bg-[#0b1120] text-white p-6 flex justify-between items-center shrink-0">
               <div>
                 <div className="flex items-center space-x-3 mb-1">
@@ -2272,12 +2183,14 @@ const App = () => {
               </button>
             </div>
             
+            {/* Info Bar y Buscador */}
             <div className="bg-slate-50 border-b border-slate-200 p-6 flex flex-col md:flex-row gap-6 md:items-center shadow-inner shrink-0">
                <div className="flex flex-col">
                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Período Fiscal</span>
                  <span className="text-slate-800 font-bold text-sm bg-white px-3 py-1 rounded-lg border border-slate-200">{lineageModalItem.label}</span>
                </div>
                
+               {/* Nuevo Buscador Global End-To-End */}
                <div className="flex-1 min-w-[250px] w-full relative">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Rastreador de Datos (Filtro Global)</span>
                   <div className="relative">
@@ -2294,12 +2207,21 @@ const App = () => {
 
                <div className="flex flex-col md:ml-auto">
                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 opacity-0 hidden md:block">Acción</span>
-                 <button onClick={handleExportLineage} className="w-full md:w-auto px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-lg transition-all hover:shadow-sm flex items-center justify-center shrink-0">
-                    <Download size={16} className="mr-2 text-slate-500"/> Exportar Auditoría (CSV)
-                 </button>
+                 <div className="flex space-x-2">
+                   <button onClick={handleExportLineage} className="w-full md:w-auto px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-lg transition-all hover:shadow-sm flex items-center justify-center shrink-0">
+                      <FileText size={14} className="mr-1.5 text-slate-500"/> CSV
+                   </button>
+                   <button onClick={handleExportLineageExcel} className="w-full md:w-auto px-4 py-2.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg transition-all hover:shadow-sm flex items-center justify-center shrink-0">
+                      <FileSpreadsheet size={14} className="mr-1.5 text-emerald-600"/> Excel
+                   </button>
+                   <button onClick={handleExportLineagePDF} className="w-full md:w-auto px-4 py-2.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-800 text-xs font-bold rounded-lg transition-all hover:shadow-sm flex items-center justify-center shrink-0">
+                      <Download size={14} className="mr-1.5 text-rose-600"/> PDF
+                   </button>
+                 </div>
                </div>
             </div>
 
+            {/* Aviso de filtro activo */}
             {lineageSearchQuery && (
               <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2 flex items-center justify-center text-xs font-bold text-indigo-800 shrink-0">
                 <Filter size={14} className="mr-2 text-indigo-500" /> Mostrando la transformación de datos para la búsqueda: "{lineageSearchQuery}"
